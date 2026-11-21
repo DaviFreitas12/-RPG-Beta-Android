@@ -45,3 +45,14 @@ Aplicativo Android de RPG multissistemas, com identidade visual medieval sombria
 
 ## Limitação desta entrega
 O ambiente de preparação não possui Android SDK nem Gradle instalados, portanto não foi possível compilar ou validar um APK nesta sessão. O ZIP contém o projeto-fonte atualizado para compilação no Android Studio; não é um APK instalável.
+
+
+## Beta 0.5.0 — Motor de RPG inicial
+A aba **Motor** executa rolagens (d4 a d100), fórmulas aritméticas com dados e variáveis (`1d20 + FOR + PROF`), testes contra CD e iniciativa com acompanhamento básico de PV. Consulte `docs/CHANGELOG_0.5.0.md` e `docs/MOTOR_RPG.md` para o escopo e as limitações atuais.
+
+
+## Beta 0.6.0
+
+A navegação foi reorganizada para cinco destinos principais, com o Motor de RPG sempre visível e uma central Biblioteca para Bestiário, Grimório e Itens. O Motor agora permite resolver ataques entre combatentes, comparar o resultado com a defesa/CA e aplicar automaticamente o dano aos pontos de vida, persistindo a alteração localmente.
+
+Esta versão é uma etapa incremental: atributos ainda são informados manualmente no motor e as fichas/bibliotecas ainda não estão totalmente integradas. Consulte `docs/CHANGELOG_0.6.0.md` para limitações e próximos passos.

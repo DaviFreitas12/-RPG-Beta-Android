@@ -52,20 +52,20 @@ private fun RpgApp() {
             containerColor = Night,
             bottomBar = {
                 NavigationBar(containerColor = Panel) {
+                    // Cinco destinos principais evitam que os itens fiquem cortados em celulares estreitos.
                     val tabs = listOf(
                         "Campanha" to Icons.Default.Home,
                         "Personagens" to Icons.Default.Person,
-                        "Bestiário" to Icons.Default.Pets,
-                        "Grimório" to Icons.Default.MenuBook,
-                        "Itens" to Icons.Default.Inventory2,
+                        "Motor" to Icons.Default.Casino,
+                        "Biblioteca" to Icons.Default.MenuBook,
                         "Sistemas" to Icons.Default.Tune
                     )
                     tabs.forEach { (label, icon) ->
                         NavigationBarItem(
-                            selected = selected == label,
+                            selected = selected == label || (label == "Biblioteca" && selected in listOf("Bestiário", "Grimório", "Itens")),
                             onClick = { selected = label },
                             icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label, fontSize = 10.sp) },
+                            label = { Text(label, fontSize = 10.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Gold, selectedTextColor = Gold,
                                 indicatorColor = Blood.copy(alpha = .22f),
@@ -81,9 +81,37 @@ private fun RpgApp() {
                 "Campanha" -> CampaignScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Personagens" -> CharacterScreen(Modifier.padding(padding))
                 "Sistemas" -> SystemBuilderScreen(Modifier.padding(padding))
+                "Motor" -> RpgEngineScreen(Modifier.padding(padding))
+                "Biblioteca" -> LibraryHubScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Bestiário" -> SimpleLibraryScreen(Modifier.padding(padding), "bestiary", "Bestiário", "Cadastre e gerencie criaturas")
                 "Grimório" -> SimpleLibraryScreen(Modifier.padding(padding), "spells", "Grimório", "Cadastre e gerencie magias")
                 else -> SimpleLibraryScreen(Modifier.padding(padding), "items", "Itens", "Cadastre armas, armaduras e tesouros")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String) -> Unit) {
+    LazyColumn(
+        modifier.fillMaxSize().padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(top = 22.dp, bottom = 30.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Text("ARQUIVOS DA MESA", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("Biblioteca", color = Parchment, fontSize = 29.sp, fontWeight = FontWeight.Bold)
+            Text("Conteúdos reutilizáveis da campanha, organizados em um só lugar.", color = Muted, fontSize = 12.sp)
+        }
+        item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças") { onNavigate("Bestiário") } }
+        item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos") { onNavigate("Grimório") } }
+        item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros") { onNavigate("Itens") } }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("PRÓXIMA INTEGRAÇÃO", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Os registros da biblioteca serão conectados às fichas e ao combate: itens equipados alteram atributos, magias executam efeitos e criaturas entram diretamente nos encontros.", color = Parchment, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -161,6 +189,7 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
         item { QuickCard(Icons.Default.Pets, "Bestiário", "Monstros e criaturas") { onNavigate("Bestiário") } }
         item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias e poderes") { onNavigate("Grimório") } }
         item { QuickCard(Icons.Default.Inventory2, "Itens", "Equipamentos e tesouros") { onNavigate("Itens") } }
+        item { QuickCard(Icons.Default.Casino, "Motor de RPG", "Dados, testes e combate") { onNavigate("Motor") } }
     }
     if (editing) {
         AlertDialog(
@@ -477,6 +506,215 @@ private fun SystemBuilderScreen(modifier: Modifier = Modifier) {
                     Icon(Icons.Default.Info, contentDescription = null, tint = Gold)
                     Spacer(Modifier.width(10.dp))
                     Text("Os sistemas agora podem ser salvos localmente neste aparelho. Sincronização entre contas, publicação comunitária, versionamento e execução segura de fórmulas serão etapas futuras.", color = Parchment, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RpgEngineScreen(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
+    val engine = remember { RpgEngine() }
+    var formula by remember { mutableStateOf(prefs.getString("engine_formula", "1d20 + FOR + PROF") ?: "1d20 + FOR + PROF") }
+    var difficulty by remember { mutableStateOf("15") }
+    var strength by remember { mutableStateOf("3") }
+    var dexterity by remember { mutableStateOf("2") }
+    var proficiency by remember { mutableStateOf("2") }
+    var lastResult by remember { mutableStateOf("") }
+    var resultIsSuccess by remember { mutableStateOf<Boolean?>(null) }
+    var errorMessage by remember { mutableStateOf("") }
+    var actorName by remember { mutableStateOf("") }
+    var actorHp by remember { mutableStateOf("20") }
+    var actorDefense by remember { mutableStateOf("13") }
+    var actorInitiativeBonus by remember { mutableStateOf("0") }
+    val combatants = remember {
+        mutableStateListOf<Combatant>().apply {
+            val raw = prefs.getString("engine_combatants", null)
+            if (!raw.isNullOrBlank()) try {
+                val array = JSONArray(raw)
+                for (i in 0 until array.length()) {
+                    val o = array.getJSONObject(i)
+                    add(Combatant(o.getString("id"), o.getString("name"), o.getInt("initiative"),
+                        o.getInt("currentHp"), o.getInt("maxHp"), o.optInt("armorClass", 10),
+                        loadStringList(o.optString("conditions"), emptyList())))
+                }
+            } catch (_: Exception) { clear() }
+        }
+    }
+    var activeTurn by remember { mutableIntStateOf(0) }
+    val ordered = combatants.sortedByDescending { it.initiative }
+    fun persistCombat() {
+        val array = JSONArray()
+        combatants.forEach { c -> array.put(JSONObject().put("id", c.id).put("name", c.name)
+            .put("initiative", c.initiative).put("currentHp", c.currentHp).put("maxHp", c.maxHp)
+            .put("armorClass", c.armorClass).put("conditions", JSONArray(c.conditions))) }
+        prefs.edit().putString("engine_combatants", array.toString()).apply()
+    }
+    fun variables() = mapOf(
+        "FOR" to (strength.toIntOrNull() ?: 0), "DES" to (dexterity.toIntOrNull() ?: 0),
+        "PROF" to (proficiency.toIntOrNull() ?: 0), "CON" to 0, "INT" to 0, "SAB" to 0, "CAR" to 0
+    )
+
+    LazyColumn(modifier.fillMaxSize().padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Text("SISTEMA DE REGRAS", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("Motor de RPG", color = Parchment, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Role dados, execute testes e controle a iniciativa e os pontos de vida da batalha.", color = Muted, fontSize = 12.sp)
+        }
+        item {
+            EditorCard("ROLAGEM E TESTES", "Fórmulas executáveis: 1d20 + FOR + PROF, 2d6 + 3, (1d8 + FOR) * 2") {
+                OutlinedTextField(value = formula, onValueChange = { formula = it }, label = { Text("Fórmula") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = strength, onValueChange = { strength = it }, label = { Text("FOR") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = dexterity, onValueChange = { dexterity = it }, label = { Text("DES") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = proficiency, onValueChange = { proficiency = it }, label = { Text("PROF") }, modifier = Modifier.weight(1f), singleLine = true)
+                }
+                OutlinedTextField(value = difficulty, onValueChange = { difficulty = it.filter(Char::isDigit) }, label = { Text("Classe de dificuldade (CD)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Button(onClick = {
+                    try {
+                        val check = engine.check(formula, difficulty.toIntOrNull() ?: 0, variables())
+                        lastResult = "${check.roll.total} • ${if (check.success) "SUCESSO" else "FALHA"} • margem ${if (check.margin >= 0) "+" else ""}${check.margin}\n${check.roll.naturalRolls.takeIf { it.isNotEmpty() }?.joinToString(" + ") ?: "Sem dados"}"
+                        resultIsSuccess = check.success
+                        errorMessage = ""
+                        prefs.edit().putString("engine_formula", formula).apply()
+                    } catch (e: Exception) { errorMessage = e.message ?: "Não foi possível executar a fórmula."; lastResult = ""; resultIsSuccess = null }
+                }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
+                    Icon(Icons.Default.Casino, null); Spacer(Modifier.width(8.dp)); Text("Executar teste")
+                }
+                if (lastResult.isNotBlank()) Text(lastResult, color = if (resultIsSuccess == true) Gold else Parchment, fontWeight = FontWeight.Bold)
+                if (errorMessage.isNotBlank()) Text(errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text("Atalhos de rolagem", color = Muted, fontSize = 11.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("d4", "d6", "d8", "d10", "d12", "d20", "d100").forEach { die ->
+                        OutlinedButton(onClick = {
+                            try { val r = engine.roll(die); lastResult = "$die → ${r.total}"; resultIsSuccess = null; errorMessage = "" }
+                            catch (e: Exception) { errorMessage = e.message ?: "Erro na rolagem" }
+                        }, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp)) { Text(die, fontSize = 11.sp) }
+                    }
+                }
+            }
+        }
+        item {
+            EditorCard("ORDEM DE INICIATIVA", "Adicione participantes e organize os turnos automaticamente") {
+                OutlinedTextField(value = actorName, onValueChange = { actorName = it }, label = { Text("Nome do combatente") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = actorInitiativeBonus, onValueChange = { actorInitiativeBonus = it }, label = { Text("Bônus iniciativa") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = actorHp, onValueChange = { actorHp = it.filter(Char::isDigit) }, label = { Text("PV máximos") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = actorDefense, onValueChange = { actorDefense = it.filter(Char::isDigit) }, label = { Text("Defesa/CA") }, modifier = Modifier.weight(1f), singleLine = true)
+                }
+                Button(onClick = {
+                    val hp = actorHp.toIntOrNull() ?: 0
+                    if (actorName.isNotBlank() && hp > 0) {
+                        val init = engine.roll("1d20 + ${actorInitiativeBonus.toIntOrNull() ?: 0}").total
+                        combatants.add(Combatant(UUID.randomUUID().toString(), actorName.trim(), init, hp, hp, actorDefense.toIntOrNull() ?: 10))
+                        persistCombat(); actorName = ""
+                    } else errorMessage = "Informe um nome e PV máximos maiores que zero."
+                }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
+                    Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar e rolar iniciativa")
+                }
+                if (ordered.isNotEmpty()) {
+                    Text("TURNO ${activeTurn % ordered.size + 1} DE ${ordered.size}", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ordered.forEachIndexed { index, fighter ->
+                        Card(colors = CardDefaults.cardColors(containerColor = if (index == activeTurn % ordered.size) Panel2 else Night)) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${index + 1}. ${fighter.name}", color = Parchment, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    InfoPill("INI ${fighter.initiative}")
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("PV ${fighter.currentHp}/${fighter.maxHp} • CA ${fighter.armorClass}", color = Muted, modifier = Modifier.weight(1f), fontSize = 12.sp)
+                                    IconButton(onClick = {
+                                        val at = combatants.indexOfFirst { it.id == fighter.id }
+                                        if (at >= 0) combatants[at] = combatants[at].copy(currentHp = (fighter.currentHp - 1).coerceAtLeast(0))
+                                        persistCombat()
+                                    }) { Icon(Icons.Default.Remove, "Aplicar 1 de dano", tint = Blood) }
+                                    IconButton(onClick = {
+                                        val at = combatants.indexOfFirst { it.id == fighter.id }
+                                        if (at >= 0) combatants[at] = combatants[at].copy(currentHp = (fighter.currentHp + 1).coerceAtMost(fighter.maxHp))
+                                        persistCombat()
+                                    }) { Icon(Icons.Default.Add, "Curar 1 PV", tint = Gold) }
+                                    IconButton(onClick = { combatants.removeAll { it.id == fighter.id }; persistCombat() }) { Icon(Icons.Default.DeleteOutline, "Remover", tint = Muted) }
+                                }
+                            }
+                        }
+                    }
+                    EditorCard("RESOLVER ATAQUE", "Escolha atacante e alvo. O motor rola o acerto e aplica o dano automaticamente.") {
+                        var attackerMenu by remember { mutableStateOf(false) }
+                        var targetMenu by remember { mutableStateOf(false) }
+                        var attackExpression by remember { mutableStateOf("1d20 + FOR + PROF") }
+                        var damageExpression by remember { mutableStateOf("1d8 + FOR") }
+                        var attackMessage by remember { mutableStateOf("") }
+                        var attackError by remember { mutableStateOf("") }
+                        var selectedAttackerId by remember { mutableStateOf("") }
+                        var selectedTargetId by remember { mutableStateOf("") }
+                        val currentAttacker = ordered.firstOrNull { it.id == selectedAttackerId } ?: ordered.firstOrNull()
+                        val currentTarget = ordered.firstOrNull { it.id == selectedTargetId && it.id != currentAttacker?.id }
+                            ?: ordered.firstOrNull { it.id != currentAttacker?.id }
+                        Box {
+                            OutlinedButton(onClick = { attackerMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Atacante: ${currentAttacker?.name ?: "Selecione"}", modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ExpandMore, contentDescription = null)
+                            }
+                            DropdownMenu(expanded = attackerMenu, onDismissRequest = { attackerMenu = false }) {
+                                ordered.forEach { fighter -> DropdownMenuItem(text = { Text(fighter.name) }, onClick = { selectedAttackerId = fighter.id; attackerMenu = false }) }
+                            }
+                        }
+                        Box {
+                            OutlinedButton(onClick = { targetMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Alvo: ${currentTarget?.name ?: "Selecione"}", modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ExpandMore, contentDescription = null)
+                            }
+                            DropdownMenu(expanded = targetMenu, onDismissRequest = { targetMenu = false }) {
+                                ordered.filter { it.id != currentAttacker?.id }.forEach { fighter -> DropdownMenuItem(text = { Text(fighter.name) }, onClick = { selectedTargetId = fighter.id; targetMenu = false }) }
+                            }
+                        }
+                        OutlinedTextField(value = attackExpression, onValueChange = { attackExpression = it }, label = { Text("Fórmula de ataque") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = damageExpression, onValueChange = { damageExpression = it }, label = { Text("Fórmula de dano") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Button(onClick = {
+                            val attacker = currentAttacker
+                            val target = currentTarget
+                            if (attacker == null || target == null) {
+                                attackError = "Adicione pelo menos dois combatentes para resolver um ataque."
+                                attackMessage = ""
+                            } else try {
+                                val (attackRoll, damageRoll) = engine.attack(attackExpression, damageExpression, target.armorClass, variables())
+                                val targetIndex = combatants.indexOfFirst { it.id == target.id }
+                                if (damageRoll != null && targetIndex >= 0) {
+                                    val updated = target.copy(currentHp = (target.currentHp - damageRoll.total).coerceAtLeast(0))
+                                    combatants[targetIndex] = updated
+                                    persistCombat()
+                                    attackMessage = "${attacker.name} acertou ${target.name}! Ataque ${attackRoll.total} contra CA ${target.armorClass}; dano ${damageRoll.total}. PV restantes: ${updated.currentHp}/${updated.maxHp}."
+                                } else {
+                                    attackMessage = "${attacker.name} errou ${target.name}. Ataque ${attackRoll.total} contra CA ${target.armorClass}."
+                                }
+                                attackError = ""
+                            } catch (e: Exception) {
+                                attackError = e.message ?: "Não foi possível resolver o ataque."
+                                attackMessage = ""
+                            }
+                        }, enabled = ordered.size >= 2, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
+                            Icon(Icons.Default.Gavel, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Rolar ataque e aplicar dano")
+                        }
+                        if (attackMessage.isNotBlank()) Text(attackMessage, color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        if (attackError.isNotBlank()) Text(attackError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { if (ordered.isNotEmpty()) activeTurn = (activeTurn + 1) % ordered.size }, modifier = Modifier.weight(1f)) { Text("Próximo turno") }
+                        OutlinedButton(onClick = { combatants.clear(); activeTurn = 0; persistCombat() }, modifier = Modifier.weight(1f)) { Text("Encerrar combate") }
+                    }
+                } else Text("Nenhum combatente na iniciativa.", color = Muted, fontSize = 12.sp)
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel2)) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Default.Info, null, tint = Gold)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Núcleo executável da Beta 0.6.0: rolagens, fórmulas, testes contra CD, iniciativa, turnos, controle de PV e resolução de ataques com aplicação automática de dano. Os valores de atributos desta tela ainda são informados manualmente; a próxima etapa é conectá-los às fichas e aos adaptadores de cada sistema.", color = Parchment, fontSize = 11.sp)
                 }
             }
         }
