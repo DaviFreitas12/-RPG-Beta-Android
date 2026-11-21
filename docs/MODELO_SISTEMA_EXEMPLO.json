@@ -1,0 +1,30 @@
+{
+  "id": "custom-system-example",
+  "name": "Meu sistema",
+  "description": "Sistema personalizado do mestre",
+  "version": 1,
+  "attributes": [
+    { "key": "for", "label": "Força", "abbreviation": "FOR", "min": 0, "max": 30, "defaultValue": 10 },
+    { "key": "des", "label": "Destreza", "abbreviation": "DES", "min": 0, "max": 30, "defaultValue": 10 }
+  ],
+  "resources": [
+    { "key": "hp", "label": "Pontos de vida", "defaultMax": 10 },
+    { "key": "mana", "label": "Mana", "defaultMax": 0 }
+  ],
+  "skills": [
+    { "key": "athletics", "label": "Atletismo", "attributeKey": "for" }
+  ],
+  "dice": [4, 6, 8, 10, 12, 20, 100],
+  "formulas": {
+    "test": "1d20 + attribute + proficiency",
+    "initiative": "1d20 + des"
+  },
+  "customFields": [
+    { "key": "origin", "label": "Origem", "type": "text", "required": false }
+  ],
+  "ruleOptions": {
+    "initiativeEnabled": true,
+    "levelEnabled": true,
+    "armorClassEnabled": false
+  }
+}

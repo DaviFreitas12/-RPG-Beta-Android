@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "794490967762",
+    "project_id": "rpg-5f5bc",
+    "storage_bucket": "rpg-5f5bc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794490967762:android:736c6b5aa27652327ebf0b",
+        "android_client_info": {
+          "package_name": "Com.Freitas.Rpg"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC85UNUg6bUqvo3fr2LyZdxM-MXUiA_jyM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794490967762:android:5a9b2c60beaa316d7ebf0b",
+        "android_client_info": {
+          "package_name": "com.example.rpgsombrio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC85UNUg6bUqvo3fr2LyZdxM-MXUiA_jyM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
