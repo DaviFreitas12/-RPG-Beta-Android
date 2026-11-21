@@ -2,10 +2,14 @@ package com.example.rpgsombrio
 
 import android.os.Bundle
 import android.content.Context
+import android.net.Uri
+import android.graphics.BitmapFactory
+import androidx.activity.result.contract.ActivityResultContracts
 import org.json.JSONArray
 import org.json.JSONObject
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,19 +24,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.UUID
 
-private val Night = Color(0xFF101014)
-private val Panel = Color(0xFF202027)
-private val Panel2 = Color(0xFF29252A)
-private val Blood = Color(0xFF922C38)
-private val Gold = Color(0xFFC6A15B)
-private val Parchment = Color(0xFFE9DDC5)
-private val Muted = Color(0xFFAAA19A)
+private val Night = Color(0xFF17120F)       // fundo: madeira escura
+private val Panel = Color(0xFF2B211A)       // painéis: couro
+private val Panel2 = Color(0xFF3B2B20)      // painéis elevados
+private val Blood = Color(0xFF7D2934)       // vinho medieval
+private val Gold = Color(0xFFD2AE68)        // filetes e destaques
+private val Parchment = Color(0xFFF0E2C4)   // texto de pergaminho
+private val Muted = Color(0xFFC0AD91)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,10 +49,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun RpgApp() {
     var selected by remember { mutableStateOf("Campanha") }
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = Gold, secondary = Blood, background = Night, surface = Panel,
-        onBackground = Parchment, onSurface = Parchment
-    )) {
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Gold, onPrimary = Night,
+            secondary = Blood, onSecondary = Parchment,
+            background = Night, onBackground = Parchment,
+            surface = Panel, onSurface = Parchment,
+            surfaceVariant = Panel2, onSurfaceVariant = Muted,
+            primaryContainer = Panel2, onPrimaryContainer = Parchment,
+            secondaryContainer = Blood.copy(alpha = .35f), onSecondaryContainer = Parchment,
+            outline = Gold.copy(alpha = .55f), outlineVariant = Gold.copy(alpha = .25f)
+        ),
+        shapes = Shapes(
+            small = RoundedCornerShape(10.dp),
+            medium = RoundedCornerShape(14.dp),
+            large = RoundedCornerShape(18.dp)
+        )
+    ) {
         Scaffold(
             containerColor = Night,
             bottomBar = {
@@ -107,7 +125,7 @@ private fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String)
         item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos") { onNavigate("Grimório") } }
         item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros") { onNavigate("Itens") } }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(14.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .24f))) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("PRÓXIMA INTEGRAÇÃO", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text("Os registros da biblioteca serão conectados às fichas e ao combate: itens equipados alteram atributos, magias executam efeitos e criaturas entram diretamente nos encontros.", color = Parchment, fontSize = 12.sp)
@@ -142,7 +160,7 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .32f))) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("CAMPANHA ATUAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     Text(campaignName, color = Parchment, fontSize = 25.sp, fontWeight = FontWeight.Bold)
@@ -157,7 +175,7 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .26f))) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("SISTEMA DE REGRAS", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
                     Text("Cada campanha pode usar um sistema diferente.", color = Muted, fontSize = 12.sp)
@@ -219,10 +237,11 @@ private fun CharacterScreen(modifier: Modifier = Modifier) {
         listOf("Nome", "Classe", "Nível / PV", "Anotações"),
         listOf("Novo personagem", "Ex.: Hemomante", "Nível 1 • 10/10 PV", ""),
         listOf(LocalRecord("demo-davi", "Davi", "Hemomante", "Nível 2 • 20/20 PV • CA 13",
-            "Ficha inicial demonstrativa. Edite os dados para personalizar seu personagem.")))
+            "Ficha inicial demonstrativa. Edite os dados para personalizar seu personagem.")),
+        allowPortrait = true)
 }
 
-private data class LocalRecord(val id: String, val name: String, val category: String, val detail: String, val notes: String)
+private data class LocalRecord(val id: String, val name: String, val category: String, val detail: String, val notes: String, val imageUri: String = "")
 
 private fun readRecords(prefs: android.content.SharedPreferences, key: String, defaults: List<LocalRecord>): List<LocalRecord> {
     val raw = prefs.getString("records_$key", null) ?: return defaults
@@ -230,7 +249,7 @@ private fun readRecords(prefs: android.content.SharedPreferences, key: String, d
         val arr = JSONArray(raw)
         List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
-            LocalRecord(o.optString("id"), o.optString("name"), o.optString("category"), o.optString("detail"), o.optString("notes"))
+            LocalRecord(o.optString("id"), o.optString("name"), o.optString("category"), o.optString("detail"), o.optString("notes"), o.optString("imageUri"))
         }
     } catch (_: Exception) { defaults }
 }
@@ -239,7 +258,7 @@ private fun saveRecords(prefs: android.content.SharedPreferences, key: String, r
     val arr = JSONArray()
     records.forEach { r ->
         arr.put(JSONObject().put("id", r.id).put("name", r.name).put("category", r.category)
-            .put("detail", r.detail).put("notes", r.notes))
+            .put("detail", r.detail).put("notes", r.notes).put("imageUri", r.imageUri))
     }
     prefs.edit().putString("records_$key", arr.toString()).apply()
 }
@@ -268,7 +287,8 @@ private fun LocalRecordsScreen(
     subtitle: String,
     fieldLabels: List<String>,
     placeholders: List<String>,
-    defaults: List<LocalRecord> = emptyList()
+    defaults: List<LocalRecord> = emptyList(),
+    allowPortrait: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
@@ -280,6 +300,13 @@ private fun LocalRecordsScreen(
     var category by remember { mutableStateOf("") }
     var detail by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var portraitUri by remember { mutableStateOf("") }
+    val portraitPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
+            portraitUri = uri.toString()
+        }
+    }
     var deleteTarget by remember { mutableStateOf<LocalRecord?>(null) }
 
     fun persist() = saveRecords(prefs, key, records.toList())
@@ -289,6 +316,7 @@ private fun LocalRecordsScreen(
         category = record?.category ?: placeholders[1]
         detail = record?.detail ?: placeholders[2]
         notes = record?.notes ?: placeholders[3]
+        portraitUri = record?.imageUri ?: ""
         dialogOpen = true
     }
 
@@ -316,9 +344,18 @@ private fun LocalRecordsScreen(
         }
         items(filtered.size) { index ->
             val record = filtered[index]
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .22f))) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(record.name, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (allowPortrait && record.imageUri.isNotBlank()) {
+                            val avatar = remember(record.imageUri) { runCatching { context.contentResolver.openInputStream(Uri.parse(record.imageUri))?.use { BitmapFactory.decodeStream(it) } }.getOrNull() }
+                            if (avatar != null) Image(bitmap = avatar.asImageBitmap(), contentDescription = "Retrato de ${record.name}", modifier = Modifier.size(64.dp), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(record.name, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            if (record.category.isNotBlank()) Text(record.category, color = Gold, fontSize = 12.sp)
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         if (record.category.isNotBlank()) InfoPill(record.category)
                         if (record.detail.isNotBlank()) InfoPill(record.detail)
@@ -342,13 +379,21 @@ private fun LocalRecordsScreen(
                     OutlinedTextField(category, { category = it }, label = { Text(fieldLabels[1]) }, singleLine = true)
                     OutlinedTextField(detail, { detail = it }, label = { Text(fieldLabels[2]) }, singleLine = true)
                     OutlinedTextField(notes, { notes = it }, label = { Text(fieldLabels[3]) }, minLines = 2)
+                    if (allowPortrait) {
+                        OutlinedButton(onClick = { portraitPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (portraitUri.isBlank()) "Escolher retrato da galeria" else "Trocar retrato")
+                        }
+                        if (portraitUri.isNotBlank()) Text("Imagem selecionada para esta ficha.", color = Gold, fontSize = 11.sp)
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     if (name.isNotBlank()) {
                         val record = LocalRecord(editingId ?: UUID.randomUUID().toString(), name.trim(),
-                            category.trim(), detail.trim(), notes.trim())
+                            category.trim(), detail.trim(), notes.trim(), portraitUri)
                         val index = records.indexOfFirst { it.id == record.id }
                         if (index >= 0) records[index] = record else records.add(0, record)
                         persist()
@@ -731,8 +776,8 @@ private fun loadStringList(raw: String?, fallback: List<String>): List<String> {
 
 @Composable
 private fun EditorCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))) {
+        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(title, color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             Text(subtitle, color = Muted, fontSize = 11.sp)
             content()
@@ -765,7 +810,7 @@ private fun InfoPill(text: String) {
 
 @Composable
 private fun QuickCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, description: String, onClick: () -> Unit = {}) {
-    Card(modifier = Modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
+    Card(modifier = Modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .24f))) {
         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = Gold, modifier = Modifier.size(25.dp))
             Spacer(Modifier.width(13.dp))

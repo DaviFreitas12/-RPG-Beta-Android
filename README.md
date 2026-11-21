@@ -56,3 +56,13 @@ A aba **Motor** executa rolagens (d4 a d100), fórmulas aritméticas com dados e
 A navegação foi reorganizada para cinco destinos principais, com o Motor de RPG sempre visível e uma central Biblioteca para Bestiário, Grimório e Itens. O Motor agora permite resolver ataques entre combatentes, comparar o resultado com a defesa/CA e aplicar automaticamente o dano aos pontos de vida, persistindo a alteração localmente.
 
 Esta versão é uma etapa incremental: atributos ainda são informados manualmente no motor e as fichas/bibliotecas ainda não estão totalmente integradas. Consulte `docs/CHANGELOG_0.6.0.md` para limitações e próximos passos.
+
+## Atualização visual medieval
+
+Esta edição inclui uma primeira etapa de renovação visual da interface:
+- paleta de madeira escura, couro, vinho e dourado;
+- cartões com contornos dourados discretos e cantos mais suaves;
+- seleção de retrato pela galeria nas fichas de personagens;
+- persistência do URI do retrato junto aos registros locais, preservando registros antigos sem imagem.
+
+A compilação Android deve ser validada no ambiente Android/Gradle do projeto antes de gerar o APK final.
