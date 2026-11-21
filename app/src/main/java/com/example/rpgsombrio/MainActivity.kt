@@ -8,8 +8,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.UUID
 
 private val Night = Color(0xFF101014)
 private val Panel = Color(0xFF202027)
@@ -75,21 +78,26 @@ private fun RpgApp() {
             }
         ) { padding ->
             when (selected) {
-                "Campanha" -> CampaignScreen(Modifier.padding(padding))
+                "Campanha" -> CampaignScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Personagens" -> CharacterScreen(Modifier.padding(padding))
                 "Sistemas" -> SystemBuilderScreen(Modifier.padding(padding))
-                "Bestiário" -> SimpleLibraryScreen(Modifier.padding(padding), "Bestiário", "Criaturas cadastradas", "Bláblá", "20 PV", "CA 9")
-                "Grimório" -> SimpleLibraryScreen(Modifier.padding(padding), "Grimório", "Biblioteca de magias", "Nova magia", "Nível 1", "Evocação")
-                else -> SimpleLibraryScreen(Modifier.padding(padding), "Itens", "Equipamentos e tesouros", "Novo item", "Arma", "Peso —")
+                "Bestiário" -> SimpleLibraryScreen(Modifier.padding(padding), "bestiary", "Bestiário", "Cadastre e gerencie criaturas")
+                "Grimório" -> SimpleLibraryScreen(Modifier.padding(padding), "spells", "Grimório", "Cadastre e gerencie magias")
+                else -> SimpleLibraryScreen(Modifier.padding(padding), "items", "Itens", "Cadastre armas, armaduras e tesouros")
             }
         }
     }
 }
 
 @Composable
-private fun CampaignScreen(modifier: Modifier = Modifier) {
-    var selectedSystem by remember { mutableStateOf("D&D 5e") }
+private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
+    var campaignName by remember { mutableStateOf(prefs.getString("active_campaign_name", "As Cinzas do Reino") ?: "As Cinzas do Reino") }
+    var campaignDescription by remember { mutableStateOf(prefs.getString("active_campaign_description", "O reino caiu. A escuridão despertou.") ?: "") }
+    var selectedSystem by remember { mutableStateOf(prefs.getString("active_campaign_system", "D&D 5e") ?: "D&D 5e") }
     var systemMenuExpanded by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
     val systemOptions = listOf("D&D 5e", "D&D 2024", "Vampiro", "Sistema próprio", "Outro sistema")
     LazyColumn(
         modifier.fillMaxSize().padding(horizontal = 18.dp),
@@ -102,25 +110,20 @@ private fun CampaignScreen(modifier: Modifier = Modifier) {
                     Text("RPG", color = Gold, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
                     Text("CRÔNICAS NAS SOMBRAS", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                 }
-                Image(
-                    painter = painterResource(id = R.drawable.rpg_crest),
-                    contentDescription = "Brasão RPG",
-                    modifier = Modifier.size(68.dp)
-                )
+                Image(painter = painterResource(id = R.drawable.rpg_crest), contentDescription = "Brasão RPG", modifier = Modifier.size(68.dp))
             }
         }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("CAMPANHA EM DESTAQUE", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Text("As Cinzas do Reino", color = Parchment, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("O reino caiu. A escuridão despertou. O destino ainda pode ser reescrito.", color = Muted, fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        InfoPill("1 personagem")
-                        InfoPill("Sessão 01")
-                    }
-                    Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = Blood), modifier = Modifier.fillMaxWidth()) {
-                        Text("Abrir campanha")
+                    Text("CAMPANHA ATUAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text(campaignName, color = Parchment, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text(campaignDescription, color = Muted, fontSize = 13.sp)
+                    InfoPill(selectedSystem)
+                    Button(onClick = { editing = true }, colors = ButtonDefaults.buttonColors(containerColor = Blood), modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Editar campanha")
                     }
                 }
             }
@@ -137,141 +140,212 @@ private fun CampaignScreen(modifier: Modifier = Modifier) {
                         }
                         DropdownMenu(expanded = systemMenuExpanded, onDismissRequest = { systemMenuExpanded = false }) {
                             systemOptions.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option) },
-                                    onClick = { selectedSystem = option; systemMenuExpanded = false }
-                                )
+                                DropdownMenuItem(text = { Text(option) }, onClick = {
+                                    selectedSystem = option
+                                    prefs.edit().putString("active_campaign_system", option).apply()
+                                    systemMenuExpanded = false
+                                })
                             }
                         }
                     }
-                    OutlinedButton(
-                        onClick = { /* acesso ao editor pela navegação inferior */ },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    OutlinedButton(onClick = { onNavigate("Sistemas") }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Tune, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Construtor de sistemas na aba Sistemas")
+                        Text("Abrir construtor de sistemas")
                     }
-                    Text(
-                        when (selectedSystem) {
-                            "D&D 5e" -> "Atributos clássicos, níveis, classes e pontos de vida."
-                            "D&D 2024" -> "Ficha preparada para a revisão de 2024."
-                            "Vampiro" -> "Atributos e trilhas de recursos próprios do sistema."
-                            "Sistema próprio" -> "Configure atributos, recursos, perícias e dados da sua mesa."
-                            else -> "Use uma ficha neutra e personalize as regras."
-                        }, color = Parchment, fontSize = 12.sp
-                    )
                 }
             }
         }
-        item { SectionTitle("ACESSO RÁPIDO", "Tudo que sua mesa precisa") }
-        item { QuickCard(Icons.Default.Person, "Personagens", "Fichas, atributos, vida e equipamentos") }
-        item { QuickCard(Icons.Default.Pets, "Bestiário", "Monstros, estatísticas e habilidades") }
-        item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, níveis, alcance e efeitos") }
-        item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, tesouros e peso") }
-        item {
-            Text("PRÉVIA • DADOS DE DEMONSTRAÇÃO", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
-        }
+        item { SectionTitle("ACESSO RÁPIDO", "Abra e gerencie os conteúdos da mesa") }
+        item { QuickCard(Icons.Default.Person, "Personagens", "Fichas e pontos de vida") { onNavigate("Personagens") } }
+        item { QuickCard(Icons.Default.Pets, "Bestiário", "Monstros e criaturas") { onNavigate("Bestiário") } }
+        item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias e poderes") { onNavigate("Grimório") } }
+        item { QuickCard(Icons.Default.Inventory2, "Itens", "Equipamentos e tesouros") { onNavigate("Itens") } }
+    }
+    if (editing) {
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("Editar campanha") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(campaignName, { campaignName = it }, label = { Text("Nome") }, singleLine = true)
+                    OutlinedTextField(campaignDescription, { campaignDescription = it }, label = { Text("Descrição") }, minLines = 2)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    prefs.edit().putString("active_campaign_name", campaignName.trim().ifBlank { "Minha campanha" })
+                        .putString("active_campaign_description", campaignDescription.trim()).apply()
+                    editing = false
+                }) { Text("Salvar") }
+            },
+            dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancelar") } }
+        )
     }
 }
 
 @Composable
 private fun CharacterScreen(modifier: Modifier = Modifier) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
-    var currentHp by remember { mutableIntStateOf(prefs.getInt("davi_hp", 20).coerceIn(0, 20)) }
-    LazyColumn(
-        modifier.fillMaxSize().padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Text("PERSONAGEM", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text("Davi", color = Parchment, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("Hemomante  •  Nível 2", color = Muted, fontSize = 14.sp)
+    LocalRecordsScreen(modifier, "characters", "Personagens", "Fichas, atributos e pontos de vida",
+        listOf("Nome", "Classe", "Nível / PV", "Anotações"),
+        listOf("Novo personagem", "Ex.: Hemomante", "Nível 1 • 10/10 PV", ""),
+        listOf(LocalRecord("demo-davi", "Davi", "Hemomante", "Nível 2 • 20/20 PV • CA 13",
+            "Ficha inicial demonstrativa. Edite os dados para personalizar seu personagem.")))
+}
+
+private data class LocalRecord(val id: String, val name: String, val category: String, val detail: String, val notes: String)
+
+private fun readRecords(prefs: android.content.SharedPreferences, key: String, defaults: List<LocalRecord>): List<LocalRecord> {
+    val raw = prefs.getString("records_$key", null) ?: return defaults
+    return try {
+        val arr = JSONArray(raw)
+        List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            LocalRecord(o.optString("id"), o.optString("name"), o.optString("category"), o.optString("detail"), o.optString("notes"))
         }
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("PONTOS DE VIDA", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
-                            Text("$currentHp / 20", color = Parchment, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Surface(color = Panel2, shape = RoundedCornerShape(10.dp)) {
-                            Text("CA 13", Modifier.padding(horizontal = 14.dp, vertical = 10.dp), color = Gold, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    LinearProgressIndicator(
-                        progress = { currentHp / 20f },
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = Blood,
-                        trackColor = Panel2
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = { currentHp = (currentHp - 1).coerceAtLeast(0); prefs.edit().putInt("davi_hp", currentHp).apply() }, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Remove, null); Text(" 1 PV")
-                        }
-                        Button(onClick = { currentHp = (currentHp + 1).coerceAtMost(20); prefs.edit().putInt("davi_hp", currentHp).apply() }, modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
-                            Icon(Icons.Default.Add, null); Text(" 1 PV")
-                        }
-                    }
-                }
-            }
-        }
-        item { SectionTitle("ATRIBUTOS", "Valores e modificadores") }
-        item {
-            val attrs = listOf("FOR" to "8", "DES" to "12", "CON" to "9", "INT" to "17", "SAB" to "10", "CAR" to "10")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                attrs.chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { (name, value) ->
-                            Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(12.dp)) {
-                                Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(name, color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    Text(value, color = Parchment, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                                    val modifierValue = (value.toInt() - 10) / 2
-                                    Text(if (modifierValue >= 0) "+$modifierValue" else "$modifierValue", color = Gold, fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        item { SectionTitle("INFORMAÇÕES", "Resumo da ficha") }
-        item { QuickCard(Icons.Default.Backpack, "Inventário", "Itens carregados e equipamentos") }
-        item { QuickCard(Icons.Default.AutoAwesome, "Habilidades", "Características e poderes") }
-        item { QuickCard(Icons.Default.Notes, "Anotações", "História, objetivos e observações") }
-        item { Text("Os valores ausentes são apenas demonstração e poderão ser editados na ficha completa.", color = Muted, fontSize = 11.sp) }
+    } catch (_: Exception) { defaults }
+}
+
+private fun saveRecords(prefs: android.content.SharedPreferences, key: String, records: List<LocalRecord>) {
+    val arr = JSONArray()
+    records.forEach { r ->
+        arr.put(JSONObject().put("id", r.id).put("name", r.name).put("category", r.category)
+            .put("detail", r.detail).put("notes", r.notes))
     }
+    prefs.edit().putString("records_$key", arr.toString()).apply()
 }
 
 @Composable
-private fun SimpleLibraryScreen(modifier: Modifier, title: String, subtitle: String, itemName: String, field1: String, field2: String) {
-    LazyColumn(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+private fun SimpleLibraryScreen(modifier: Modifier, key: String, title: String, subtitle: String) {
+    val defaults = when (key) {
+        "bestiary" -> listOf(LocalRecord("sample-monster", "Lobo sombrio", "Monstro", "PV 12 • Defesa 12", "Criatura demonstrativa editável."))
+        "spells" -> listOf(LocalRecord("sample-spell", "Chama sombria", "Nível 1 • Evocação", "Alcance: 18 m", "Magia demonstrativa editável."))
+        else -> listOf(LocalRecord("sample-item", "Poção de cura", "Consumível", "Peso: 0,5 • Quantidade: 1", "Item demonstrativo editável."))
+    }
+    LocalRecordsScreen(modifier, key, title, subtitle,
+        listOf("Nome", "Tipo / categoria", "Resumo / valores", "Descrição / notas"),
+        when (key) {
+            "bestiary" -> listOf("Nova criatura", "Monstro", "PV 10 • Defesa 10", "")
+            "spells" -> listOf("Nova magia", "Nível 1 • Escola", "Alcance / dano", "")
+            else -> listOf("Novo item", "Equipamento", "Peso / bônus / quantidade", "")
+        }, defaults)
+}
+
+@Composable
+private fun LocalRecordsScreen(
+    modifier: Modifier,
+    key: String,
+    title: String,
+    subtitle: String,
+    fieldLabels: List<String>,
+    placeholders: List<String>,
+    defaults: List<LocalRecord> = emptyList()
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
+    val records = remember(key) { mutableStateListOf<LocalRecord>().apply { addAll(readRecords(prefs, key, defaults)) } }
+    var query by remember { mutableStateOf("") }
+    var dialogOpen by remember { mutableStateOf(false) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var name by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("") }
+    var detail by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<LocalRecord?>(null) }
+
+    fun persist() = saveRecords(prefs, key, records.toList())
+    fun openEditor(record: LocalRecord?) {
+        editingId = record?.id
+        name = record?.name ?: placeholders[0]
+        category = record?.category ?: placeholders[1]
+        detail = record?.detail ?: placeholders[2]
+        notes = record?.notes ?: placeholders[3]
+        dialogOpen = true
+    }
+
+    LazyColumn(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 28.dp)) {
         item {
             Text(title.uppercase(), color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text(subtitle, color = Parchment, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = Parchment, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(itemName, color = Parchment, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { InfoPill(field1); InfoPill(field2) }
-                    Text("Esta seção receberá cadastro, edição, busca e detalhes completos na próxima etapa.", color = Muted, fontSize = 12.sp)
-                }
-            }
+            OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Buscar") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
         }
         item {
-            OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { openEditor(null) }, modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
                 Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar")
             }
         }
+        val filtered = records.filter {
+            listOf(it.name, it.category, it.detail, it.notes).any { value -> value.contains(query, ignoreCase = true) }
+        }
+        if (filtered.isEmpty()) {
+            item { Text(if (query.isBlank()) "Nenhum registro ainda. Toque em Adicionar para começar." else "Nenhum resultado para essa busca.", color = Muted) }
+        }
+        items(filtered.size) { index ->
+            val record = filtered[index]
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(record.name, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        if (record.category.isNotBlank()) InfoPill(record.category)
+                        if (record.detail.isNotBlank()) InfoPill(record.detail)
+                    }
+                    if (record.notes.isNotBlank()) Text(record.notes, color = Muted, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { openEditor(record) }) { Icon(Icons.Default.Edit, null); Text("Editar") }
+                        TextButton(onClick = { deleteTarget = record }) { Icon(Icons.Default.DeleteOutline, null); Text("Excluir") }
+                    }
+                }
+            }
+        }
+    }
+    if (dialogOpen) {
+        AlertDialog(
+            onDismissRequest = { dialogOpen = false },
+            title = { Text(if (editingId == null) "Novo registro" else "Editar registro") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    OutlinedTextField(name, { name = it }, label = { Text(fieldLabels[0]) }, singleLine = true)
+                    OutlinedTextField(category, { category = it }, label = { Text(fieldLabels[1]) }, singleLine = true)
+                    OutlinedTextField(detail, { detail = it }, label = { Text(fieldLabels[2]) }, singleLine = true)
+                    OutlinedTextField(notes, { notes = it }, label = { Text(fieldLabels[3]) }, minLines = 2)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (name.isNotBlank()) {
+                        val record = LocalRecord(editingId ?: UUID.randomUUID().toString(), name.trim(),
+                            category.trim(), detail.trim(), notes.trim())
+                        val index = records.indexOfFirst { it.id == record.id }
+                        if (index >= 0) records[index] = record else records.add(0, record)
+                        persist()
+                        dialogOpen = false
+                    }
+                }) { Text("Salvar") }
+            },
+            dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancelar") } }
+        )
+    }
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Excluir ${target.name}?") },
+            text = { Text("Essa ação remove o registro deste aparelho.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    records.removeAll { it.id == target.id }
+                    persist()
+                    deleteTarget = null
+                }) { Text("Excluir") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancelar") } }
+        )
     }
 }
-
 
 @Composable
 private fun SystemBuilderScreen(modifier: Modifier = Modifier) {
@@ -452,8 +526,8 @@ private fun InfoPill(text: String) {
 }
 
 @Composable
-private fun QuickCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, description: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
+private fun QuickCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, description: String, onClick: () -> Unit = {}) {
+    Card(modifier = Modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = Gold, modifier = Modifier.size(25.dp))
             Spacer(Modifier.width(13.dp))

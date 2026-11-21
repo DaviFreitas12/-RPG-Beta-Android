@@ -1,10 +1,10 @@
-# RPG — Beta 0.3.0 (projeto Android)
+# RPG — Beta 0.4.0 (projeto Android)
 
 Aplicativo Android de RPG multissistemas, com identidade visual medieval sombria.
 
 ## O que esta versão contém
 - Interface Android em Kotlin + Jetpack Compose.
-- Navegação inicial: Campanha, Personagens, Bestiário, Grimório, Itens e Sistemas.
+- Navegação entre Campanha, Personagens, Bestiário, Grimório, Itens e Sistemas.\n- CRUD local de personagens, criaturas, magias e itens: criar, listar, buscar, editar e excluir.\n- Edição local do nome, descrição e sistema da campanha em destaque.\n- Persistência dos registros em SharedPreferences/JSON, disponível offline.
 - Brasão RPG incorporado na tela inicial.
 - Ficha de demonstração de Davi / Hemomante.
 - Controle de HP com persistência local no aparelho.
@@ -18,7 +18,7 @@ Aplicativo Android de RPG multissistemas, com identidade visual medieval sombria
 - Sincronização em nuvem (Firebase ainda não configurado).
 - Banco Room; nesta beta, persistência local é limitada a preferências do Android.
 - Motor que interprete e execute fórmulas personalizadas. As fórmulas são armazenadas como texto.
-- CRUD completo para bestiário, magias e itens.
+- Banco Room; a persistência desta beta usa SharedPreferences/JSON e é adequada apenas para um volume pequeno de dados.\n- Login real, contas e sincronização em nuvem (Firebase ainda não configurado).\n- Campanhas múltiplas, convites e permissões multiusuário.\n- CRUD completo de fichas com atributos estruturados e motor de combate.
 - Publicação/importação comunitária de sistemas.
 - Testes em dispositivos físicos e APK assinado.
 
@@ -33,7 +33,7 @@ Aplicativo Android de RPG multissistemas, com identidade visual medieval sombria
 ## Identidade
 - Nome exibido: RPG
 - Application ID: `com.example.rpgsombrio`
-- Versão: 0.3.0 (versionCode 3)
+- Versão: 0.3.0 (versionCode 4)
 - minSdk: 26 (Android 8.0)
 
 ## Roteiro de teste da beta
