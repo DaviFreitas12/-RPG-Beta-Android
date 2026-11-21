@@ -57,6 +57,38 @@ fun formatWeight(weight: Double): String {
 fun inventoryWeight(inventory: List<InventoryEntry>, items: List<ItemEntry>): Double =
     inventory.sumOf { entry -> (items.firstOrNull { it.id == entry.itemId }?.weight ?: 0.0) * entry.quantity }
 
+object TraitKind {
+    const val ADVANTAGE = "advantage"
+    const val DISADVANTAGE = "disadvantage"
+}
+
+/**
+ * Vantagem ou desvantagem da biblioteca. [cost] é sempre um valor positivo (a magnitude):
+ * vantagens gastam pontos e desvantagens devolvem pontos. [systemId] vazio = vale para todos os sistemas.
+ */
+data class TraitEntry(
+    val id: String,
+    val name: String = "",
+    val kind: String = TraitKind.ADVANTAGE,
+    val cost: Int = 0,
+    val category: String = "",
+    val systemId: String = "",
+    val description: String = ""
+) {
+    val isAdvantage: Boolean get() = kind != TraitKind.DISADVANTAGE
+}
+
+/** Pontos líquidos gastos: o que as vantagens custam menos o que as desvantagens devolvem. */
+fun traitPointsSpent(traits: List<TraitEntry>): Int =
+    traits.sumOf { if (it.isAdvantage) it.cost else -it.cost }
+
+/** Texto do custo: vantagens custam pontos; desvantagens devolvem pontos. */
+fun traitCostLabel(trait: TraitEntry): String = when {
+    trait.cost == 0 -> "Sem custo"
+    trait.isAdvantage -> "Custa ${trait.cost} pts"
+    else -> "Devolve ${trait.cost} pts"
+}
+
 data class CharacterSheet(
     val id: String,
     val name: String = "",
@@ -73,6 +105,7 @@ data class CharacterSheet(
     val attacks: List<AttackEntry> = emptyList(),
     val spellIds: List<String> = emptyList(),
     val inventory: List<InventoryEntry> = emptyList(),
+    val traitIds: List<String> = emptyList(),
     val equipment: String = "",
     val notes: String = ""
 )
@@ -126,8 +159,23 @@ data class SheetAttr(
     val label: String,
     val abbr: String,
     val default: Int,
-    val hasModifier: Boolean
-)
+    val hasModifier: Boolean,
+    val min: Int? = null,
+    val max: Int? = null,
+    val modBase: Int = 10,
+    val modDivisor: Int = 2
+) {
+    /** Modificador configurável por sistema: piso((valor − base) / divisor). */
+    fun modifierOf(value: Int): Int = Math.floorDiv(value - modBase, modDivisor.coerceAtLeast(1))
+
+    /** Limita o valor digitado. O mínimo só é aplicado quando é 0 ou 1, para não "pular" durante a digitação. */
+    fun clamp(value: Int): Int {
+        var v = value
+        max?.let { v = v.coerceAtMost(it) }
+        min?.let { if (it <= 1) v = v.coerceAtLeast(it) }
+        return v
+    }
+}
 
 data class SheetResource(val key: String, val label: String, val defaultMax: Int)
 
@@ -144,7 +192,12 @@ data class SystemProfile(
     val usesSkills: Boolean,
     val autoProficiency: Boolean,
     val conceptLabel: String,
-    val originLabel: String
+    val originLabel: String,
+    val usesAttacks: Boolean = true,
+    val usesSpells: Boolean = true,
+    val usesInventory: Boolean = true,
+    val usesTraits: Boolean = true,
+    val traitBudget: Int = 0
 ) {
     val usesProficiency: Boolean get() = attributes.any { it.hasModifier }
     fun attr(key: String): SheetAttr? = attributes.firstOrNull { it.key == key }
@@ -167,6 +220,7 @@ object SystemProfiles {
     ).map { SkillTemplate(it.first, it.second) }
 
     fun resolve(prefs: SharedPreferences, systemId: String): SystemProfile {
+        UserSystemStore.load(prefs).firstOrNull { it.id == systemId }?.let { return it.toProfile() }
         val def = RuleSystemCatalog.systems.firstOrNull { it.id == systemId } ?: RuleSystemCatalog.systems.first()
         return when (def.kind) {
             RuleSystemKind.CUSTOM, RuleSystemKind.GENERIC -> custom(prefs, def)
@@ -251,6 +305,7 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("inventory", JSONArray().also { a ->
         inventory.forEach { a.put(JSONObject().put("itemId", it.itemId).put("qty", it.quantity).put("equipped", it.equipped)) }
     })
+    .put("traitIds", JSONArray(traitIds))
     .put("equipment", equipment).put("notes", notes)
 
 private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
@@ -276,6 +331,7 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     inventory = o.optJSONArray("inventory").objects().map {
         InventoryEntry(it.optString("itemId"), it.optInt("qty", 1), it.optBoolean("equipped"))
     },
+    traitIds = o.optJSONArray("traitIds").strings(),
     equipment = o.optString("equipment"), notes = o.optString("notes")
 )
 
@@ -319,6 +375,17 @@ private fun decodeSpell(o: JSONObject): SpellEntry = SpellEntry(
     description = o.optString("description"), higherLevels = o.optString("higherLevels")
 )
 
+private fun TraitEntry.toJson(): JSONObject = JSONObject()
+    .put("id", id).put("name", name).put("kind", kind).put("cost", cost)
+    .put("category", category).put("systemId", systemId).put("description", description)
+
+private fun decodeTrait(o: JSONObject): TraitEntry = TraitEntry(
+    id = o.getString("id"), name = o.optString("name"),
+    kind = o.optString("kind", TraitKind.ADVANTAGE), cost = o.optInt("cost"),
+    category = o.optString("category"), systemId = o.optString("systemId"),
+    description = o.optString("description")
+)
+
 private fun ItemEntry.toJson(): JSONObject = JSONObject()
     .put("id", id).put("name", name).put("type", type).put("rarity", rarity).put("weight", weight)
     .put("value", value).put("bonus", bonus).put("damage", damage).put("properties", properties)
@@ -340,19 +407,50 @@ object SheetStore {
     private const val BESTIARY = "sheets_bestiary"
     private const val SPELLS = "sheets_spells"
     private const val ITEMS = "sheets_items"
+    private const val TRAITS = "sheets_traits"
 
     fun newId(): String = UUID.randomUUID().toString()
 
-    /** A campanha guarda o nome exibido do sistema; aqui ele vira o id do catálogo. */
+    /**
+     * Sistema da campanha. Prefere o id salvo (`active_campaign_system_id`); versões anteriores guardavam só o
+     * nome exibido, que ainda é aceito como alternativa.
+     */
     fun activeSystemId(prefs: SharedPreferences): String {
+        val options = systemOptions(prefs)
+        prefs.getString("active_campaign_system_id", null)?.let { id ->
+            if (options.any { it.id == id }) return id
+        }
         val name = prefs.getString("active_campaign_system", "D&D 5e")
+        options.firstOrNull { it.name == name }?.let { return it.id }
         return RuleSystemCatalog.systems.firstOrNull { it.name == name }?.id ?: "dnd5e"
+    }
+
+    fun setActiveSystem(prefs: SharedPreferences, systemId: String) {
+        prefs.edit()
+            .putString("active_campaign_system_id", systemId)
+            .putString("active_campaign_system", systemDisplayName(prefs, systemId))
+            .apply()
+    }
+
+    /**
+     * Troca o sistema de uma ficha sem apagar nada: valores de atributos e recursos de chaves que o novo
+     * sistema não conhece ficam guardados (voltam se o sistema for reativado), e o que faltar recebe o padrão.
+     */
+    fun rebindCharacter(prefs: SharedPreferences, sheet: CharacterSheet, systemId: String): CharacterSheet {
+        val p = SystemProfiles.resolve(prefs, systemId)
+        val knownSkills = sheet.skills.map { it.name }.toSet()
+        return sheet.copy(
+            systemId = p.id,
+            attributes = p.attributes.associate { it.key to it.default } + sheet.attributes,
+            resources = p.resources.associate { it.key to ResourceValue(it.defaultMax, it.defaultMax) } + sheet.resources,
+            skills = sheet.skills + p.skillTemplates.filter { it.name !in knownSkills }.map { SkillEntry(it.name, it.attributeKey) }
+        )
     }
 
     // --- criação de registros novos, já preenchidos conforme o sistema ---
 
-    fun newCharacter(prefs: SharedPreferences): CharacterSheet {
-        val p = SystemProfiles.resolve(prefs, activeSystemId(prefs))
+    fun newCharacter(prefs: SharedPreferences, systemId: String? = null): CharacterSheet {
+        val p = SystemProfiles.resolve(prefs, systemId ?: activeSystemId(prefs))
         return CharacterSheet(
             id = newId(), name = "Novo personagem", systemId = p.id,
             attributes = p.attributes.associate { it.key to it.default },
@@ -370,6 +468,11 @@ object SheetStore {
     fun newSpell(): SpellEntry = SpellEntry(id = newId(), name = "Nova magia", level = 1)
 
     fun newItem(): ItemEntry = ItemEntry(id = newId(), name = "Novo item", type = "Outro")
+
+    fun newTrait(kind: String = TraitKind.ADVANTAGE): TraitEntry = TraitEntry(
+        id = newId(), kind = kind,
+        name = if (kind == TraitKind.DISADVANTAGE) "Nova desvantagem" else "Nova vantagem"
+    )
 
     // --- leitura / escrita ---
 
@@ -436,6 +539,12 @@ object SheetStore {
 
     fun saveItems(prefs: SharedPreferences, list: List<ItemEntry>) =
         save(prefs, ITEMS, list.map { it.toJson() })
+
+    fun loadTraits(prefs: SharedPreferences): List<TraitEntry> =
+        load(prefs, TRAITS, "records_traits", ::decodeTrait, migrate = ::decodeTrait, defaults = { emptyList() })
+
+    fun saveTraits(prefs: SharedPreferences, list: List<TraitEntry>) =
+        save(prefs, TRAITS, list.map { it.toJson() })
 
     private fun <T> load(
         prefs: SharedPreferences, key: String, oldKey: String,

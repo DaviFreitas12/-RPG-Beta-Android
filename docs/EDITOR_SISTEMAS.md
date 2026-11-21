@@ -25,3 +25,7 @@ As fórmulas não devem ser avaliadas com `eval`. Implementar um parser limitado
 3. Construtor de campos personalizados (texto, número, lista, booleano).
 4. Adaptadores de ficha por versão de sistema.
 5. Sincronização Firestore e regras de acesso por campanha.
+
+
+## Atualização 0.9.0
+O construtor passou a ser uma biblioteca de sistemas persistida no aparelho (`user_systems`, JSON). Veja `CHANGELOG_0.9.0.md`. Continuam pendentes: execução das fórmulas no Motor, versionamento de sistemas e Room/Firestore.

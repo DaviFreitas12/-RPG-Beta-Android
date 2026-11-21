@@ -31,6 +31,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,6 +59,11 @@ import com.example.rpgsombrio.data.SkillEntry
 import com.example.rpgsombrio.data.SpellEntry
 import com.example.rpgsombrio.data.SystemProfile
 import com.example.rpgsombrio.data.SystemProfiles
+import com.example.rpgsombrio.data.TraitEntry
+import com.example.rpgsombrio.data.systemDisplayName
+import com.example.rpgsombrio.data.systemOptions
+import com.example.rpgsombrio.data.traitCostLabel
+import com.example.rpgsombrio.data.traitPointsSpent
 import com.example.rpgsombrio.data.formatWeight
 import com.example.rpgsombrio.data.inventoryWeight
 import com.example.rpgsombrio.data.shortResourceLabel
@@ -71,6 +77,7 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<CharacterSheet?>(null) }
+    var choosingSystem by remember { mutableStateOf(false) }
     fun persist() = SheetStore.saveCharacters(prefs, sheets.toList())
 
     val current = sheets.firstOrNull { it.id == openId }
@@ -93,16 +100,28 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
             contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            listHeader("Fichas", "Personagens", "Estrutura guiada pelo sistema da campanha",
-                query, { query = it }, "Nova ficha") {
-                val sheet = SheetStore.newCharacter(prefs)
-                sheets.add(0, sheet); persist(); openId = sheet.id
-            }
+            listHeader("Fichas", "Personagens", "Cada ficha segue o sistema a que está vinculada",
+                query, { query = it }, "Nova ficha") { choosingSystem = true }
             if (filtered.isEmpty()) item {
                 EmptyHint(if (query.isBlank()) "Nenhuma ficha ainda. Toque em Nova ficha." else "Nenhum resultado para essa busca.")
             }
             items(filtered, key = { it.id }) { sheet -> CharacterCard(sheet, prefs) { openId = sheet.id } }
         }
+    }
+
+    if (choosingSystem) {
+        val campaignId = SheetStore.activeSystemId(prefs)
+        SystemPickerDialog(
+            title = "Sistema da nova ficha",
+            options = systemOptions(prefs).sortedByDescending { it.id == campaignId },
+            currentId = campaignId, campaignId = campaignId,
+            onPick = { id ->
+                choosingSystem = false
+                val sheet = SheetStore.newCharacter(prefs, id)
+                sheets.add(0, sheet); persist(); openId = sheet.id
+            },
+            onDismiss = { choosingSystem = false }
+        )
     }
 
     deleteTarget?.let { target ->
@@ -134,6 +153,7 @@ private fun CharacterCard(sheet: CharacterSheet, prefs: SharedPreferences, onCli
                     .filter { it.isNotBlank() }.joinToString(" • ")
                 if (subtitle.isNotBlank()) Text(subtitle, color = Gold, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    InfoPill(profile.name)
                     profile.resources.firstOrNull()?.let { r ->
                         val v = sheet.resources[r.key] ?: ResourceValue(r.defaultMax, r.defaultMax)
                         InfoPill("${shortResourceLabel(r)} ${v.current}/${v.max}")
@@ -161,7 +181,7 @@ private fun CharacterEditor(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { EditorTopBar("Ficha • ${profile.name}", onBack, onDelete) }
-        item { IdentitySection(sheet, profile, onChange) }
+        item { IdentitySection(sheet, profile, prefs, onChange) }
         item { ResourcesSection(sheet, profile, onChange) }
         item {
             CollapsibleSection("ATRIBUTOS", summary = "${profile.attributes.size} atributos") {
@@ -171,9 +191,10 @@ private fun CharacterEditor(
             }
         }
         if (profile.usesSkills) item { SkillsSection(sheet, profile, onChange) }
-        item { AttacksSection(sheet, onChange) }
-        item { SpellsSection(sheet, prefs, onChange) }
-        item { InventorySection(sheet, prefs, onChange) }
+        if (profile.usesTraits) item { TraitsSection(sheet, profile, prefs, onChange) }
+        if (profile.usesAttacks) item { AttacksSection(sheet, onChange) }
+        if (profile.usesSpells) item { SpellsSection(sheet, prefs, onChange) }
+        if (profile.usesInventory) item { InventorySection(sheet, prefs, onChange) }
         item {
             CollapsibleSection("ANOTAÇÕES", summary = sheet.notes.lineSequence().firstOrNull().orEmpty(), startExpanded = false) {
                 TextInput("História, aliados, objetivos…", sheet.notes, { onChange(sheet.copy(notes = it)) }, singleLine = false, minLines = 5)
@@ -183,10 +204,18 @@ private fun CharacterEditor(
 }
 
 @Composable
-private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, onChange: (CharacterSheet) -> Unit) {
+private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
+    var switching by remember { mutableStateOf(false) }
     CollapsibleSection("IDENTIDADE", summary = listOf(sheet.name, sheet.concept).filter { it.isNotBlank() }.joinToString(" • ")) {
         PortraitField(sheet.imageUri, sheet.name) { onChange(sheet.copy(imageUri = it)) }
         TextInput("Nome", sheet.name, { onChange(sheet.copy(name = it)) })
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Sistema", color = Muted, fontSize = 11.sp)
+                Text(systemDisplayName(prefs, sheet.systemId), color = Parchment, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = { switching = true }) { Text("Trocar sistema") }
+        }
         TextInput(profile.conceptLabel, sheet.concept, { onChange(sheet.copy(concept = it)) })
         TextInput(profile.originLabel, sheet.origin, { onChange(sheet.copy(origin = it)) })
         if (profile.usesLevels || profile.usesProficiency || profile.usesArmorClass) {
@@ -205,6 +234,18 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, onCha
                 }
             }
         }
+    }
+    if (switching) {
+        SystemPickerDialog(
+            title = "Vincular a outro sistema",
+            options = systemOptions(prefs), currentId = sheet.systemId,
+            campaignId = SheetStore.activeSystemId(prefs),
+            onPick = { id ->
+                switching = false
+                if (id != sheet.systemId) onChange(SheetStore.rebindCharacter(prefs, sheet, id))
+            },
+            onDismiss = { switching = false }
+        )
     }
 }
 
@@ -246,7 +287,7 @@ private fun SkillsSection(sheet: CharacterSheet, profile: SystemProfile, onChang
         sheet.skills.forEachIndexed { index, skill ->
             val attr = profile.attr(skill.attributeKey)
             val total = if (profile.usesProficiency) {
-                val mod = if (attr != null && attr.hasModifier) dndModifier(sheet.attributes[attr.key] ?: attr.default) else 0
+                val mod = if (attr != null && attr.hasModifier) attr.modifierOf(sheet.attributes[attr.key] ?: attr.default) else 0
                 mod + (if (skill.proficient) sheet.proficiencyBonus else 0) + skill.extra
             } else skill.extra
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -280,6 +321,89 @@ private fun SkillsSection(sheet: CharacterSheet, profile: SystemProfile, onChang
                 if (name.isNotEmpty()) { onChange(sheet.copy(skills = sheet.skills + SkillEntry(name))); newSkill = "" }
             }) { Icon(Icons.Default.Add, "Adicionar perícia", tint = Gold) }
         }
+        val missing = profile.skillTemplates.filter { t -> sheet.skills.none { it.name == t.name } }
+        if (missing.isNotEmpty()) {
+            OutlinedButton(
+                onClick = { onChange(sheet.copy(skills = sheet.skills + missing.map { SkillEntry(it.name, it.attributeKey) })) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Adicionar ${missing.size} perícias do sistema") }
+        }
+    }
+}
+
+@Composable
+private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
+    val library = remember { SheetStore.loadTraits(prefs) }
+    var picking by remember { mutableStateOf(false) }
+    val linked = sheet.traitIds.mapNotNull { id -> library.firstOrNull { it.id == id } }
+    val earned = linked.filter { !it.isAdvantage }.sumOf { it.cost }
+    val spentOnAdvantages = linked.filter { it.isAdvantage }.sumOf { it.cost }
+    val net = traitPointsSpent(linked)
+    val budget = profile.traitBudget
+    val summary = "${linked.size} traços • " +
+        if (budget > 0) "${budget - net} de $budget pts livres" else "saldo ${-net} pts"
+
+    CollapsibleSection("VANTAGENS E DESVANTAGENS", summary = summary, startExpanded = false) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            InfoPill("Gastos $spentOnAdvantages")
+            InfoPill("Devolvidos $earned")
+            if (budget > 0) InfoPill("Livres ${budget - net}")
+        }
+        if (budget > 0 && net > budget) {
+            Text("Os pontos gastos passam do orçamento do sistema ($budget).", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+        }
+        if (sheet.traitIds.isEmpty()) EmptyHint("Nenhuma vantagem ou desvantagem. Cadastre na Biblioteca e vincule aqui.")
+        sheet.traitIds.forEach { id ->
+            val trait = library.firstOrNull { it.id == id }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(trait?.name?.ifBlank { "Sem nome" } ?: "Traço removido da biblioteca",
+                        color = if (trait != null) Parchment else Muted, fontSize = 14.sp)
+                    if (trait != null) {
+                        val kindLabel = if (trait.isAdvantage) "Vantagem" else "Desvantagem"
+                        Text(listOf(kindLabel, traitCostLabel(trait), trait.category).filter { it.isNotBlank() }.joinToString(" • "),
+                            color = if (trait.isAdvantage) Gold else Muted, fontSize = 11.sp)
+                    }
+                }
+                IconButton(onClick = { onChange(sheet.copy(traitIds = sheet.traitIds - id)) }) {
+                    Icon(Icons.Default.Close, "Remover traço", tint = Muted)
+                }
+            }
+        }
+        OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) { Text("Vincular da biblioteca") }
+    }
+
+    if (picking) {
+        val available = library.filter { it.systemId.isBlank() || it.systemId == sheet.systemId }
+            .sortedWith(compareBy<TraitEntry>({ !it.isAdvantage }, { it.name.lowercase() }))
+        AlertDialog(
+            onDismissRequest = { picking = false },
+            title = { Text("Vantagens e desvantagens") },
+            text = {
+                if (available.isEmpty()) {
+                    Text("Nenhum traço para este sistema. Cadastre em Biblioteca > Vantagens e desvantagens.")
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                        items(available, key = { it.id }) { trait ->
+                            val has = trait.id in sheet.traitIds
+                            val toggle = {
+                                onChange(sheet.copy(traitIds = if (has) sheet.traitIds - trait.id else sheet.traitIds + trait.id))
+                            }
+                            Row(Modifier.fillMaxWidth().clickable { toggle() }, verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = has, onCheckedChange = { toggle() },
+                                    colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Night))
+                                Column {
+                                    Text(trait.name.ifBlank { "Sem nome" })
+                                    Text(listOf(if (trait.isAdvantage) "Vantagem" else "Desvantagem", traitCostLabel(trait))
+                                        .joinToString(" • "), fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { picking = false }) { Text("Concluir") } }
+        )
     }
 }
 

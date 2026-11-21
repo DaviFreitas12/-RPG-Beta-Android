@@ -42,6 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.UUID
+import com.example.rpgsombrio.data.SheetStore
+import com.example.rpgsombrio.data.systemDisplayName
+import com.example.rpgsombrio.data.systemOptions
 
 internal val Night = Color(0xFF17120F)       // fundo: madeira escura
 internal val Panel = Color(0xFF2B211A)       // painéis: couro
@@ -107,10 +110,12 @@ internal fun Portrait(uriString: String, name: String, size: androidx.compose.ui
     }
 }
 
+private val LIBRARY_PAGES = listOf("Bestiário", "Grimório", "Itens", "Traços")
+
 @Composable
 private fun RpgApp() {
     var selected by rememberSaveable { mutableStateOf("Campanha") }
-    BackHandler(enabled = selected in listOf("Bestiário", "Grimório", "Itens")) { selected = "Biblioteca" }
+    BackHandler(enabled = selected in LIBRARY_PAGES) { selected = "Biblioteca" }
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Gold, onPrimary = Night,
@@ -142,7 +147,7 @@ private fun RpgApp() {
                     )
                     tabs.forEach { (label, icon) ->
                         NavigationBarItem(
-                            selected = selected == label || (label == "Biblioteca" && selected in listOf("Bestiário", "Grimório", "Itens")),
+                            selected = selected == label || (label == "Biblioteca" && selected in LIBRARY_PAGES),
                             onClick = { selected = label },
                             icon = { Icon(icon, contentDescription = label) },
                             label = { Text(label, fontSize = 10.sp, maxLines = 1) },
@@ -160,11 +165,12 @@ private fun RpgApp() {
             when (selected) {
                 "Campanha" -> CampaignScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Personagens" -> CharacterSheetsScreen(Modifier.padding(padding))
-                "Sistemas" -> SystemBuilderScreen(Modifier.padding(padding))
+                "Sistemas" -> SystemsScreen(Modifier.padding(padding))
                 "Motor" -> RpgEngineScreen(Modifier.padding(padding))
                 "Biblioteca" -> LibraryHubScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Bestiário" -> BestiaryScreen(Modifier.padding(padding))
                 "Grimório" -> SpellbookScreen(Modifier.padding(padding))
+                "Traços" -> TraitsScreen(Modifier.padding(padding))
                 else -> ItemsScreen(Modifier.padding(padding))
             }
         }
@@ -186,6 +192,7 @@ private fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String)
         item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças") { onNavigate("Bestiário") } }
         item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos") { onNavigate("Grimório") } }
         item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros") { onNavigate("Itens") } }
+        item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema") { onNavigate("Traços") } }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .24f))) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -203,10 +210,11 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
     val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
     var campaignName by remember { mutableStateOf(prefs.getString("active_campaign_name", "As Cinzas do Reino") ?: "As Cinzas do Reino") }
     var campaignDescription by remember { mutableStateOf(prefs.getString("active_campaign_description", "O reino caiu. A escuridão despertou.") ?: "") }
-    var selectedSystem by remember { mutableStateOf(prefs.getString("active_campaign_system", "D&D 5e") ?: "D&D 5e") }
+    var selectedSystemId by remember { mutableStateOf(SheetStore.activeSystemId(prefs)) }
+    val selectedSystem = systemDisplayName(prefs, selectedSystemId)
     var systemMenuExpanded by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
-    val systemOptions = listOf("D&D 5e", "D&D 2024", "Vampiro", "Sistema próprio", "Outro sistema")
+    val options = remember { systemOptions(prefs) }
     LazyColumn(
         modifier.fillMaxSize().padding(horizontal = 18.dp),
         contentPadding = PaddingValues(top = 20.dp, bottom = 24.dp),
@@ -240,17 +248,17 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .26f))) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("SISTEMA DE REGRAS", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
-                    Text("Cada campanha pode usar um sistema diferente.", color = Muted, fontSize = 12.sp)
+                    Text("Novas fichas nascem neste sistema. Cada ficha pode ser vinculada a outro depois.", color = Muted, fontSize = 12.sp)
                     Box {
                         OutlinedButton(onClick = { systemMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                             Text(selectedSystem, modifier = Modifier.weight(1f))
                             Icon(Icons.Default.ExpandMore, contentDescription = "Selecionar sistema")
                         }
                         DropdownMenu(expanded = systemMenuExpanded, onDismissRequest = { systemMenuExpanded = false }) {
-                            systemOptions.forEach { option ->
-                                DropdownMenuItem(text = { Text(option) }, onClick = {
-                                    selectedSystem = option
-                                    prefs.edit().putString("active_campaign_system", option).apply()
+                            options.forEach { option ->
+                                DropdownMenuItem(text = { Text(option.name) }, onClick = {
+                                    selectedSystemId = option.id
+                                    SheetStore.setActiveSystem(prefs, option.id)
                                     systemMenuExpanded = false
                                 })
                             }
@@ -290,142 +298,6 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
             },
             dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancelar") } }
         )
-    }
-}
-
-@Composable
-private fun SystemBuilderScreen(modifier: Modifier = Modifier) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
-    var saveMessage by remember { mutableStateOf("") }
-    var systemName by remember { mutableStateOf(prefs.getString("custom_system_name", "Meu sistema") ?: "Meu sistema") }
-    var description by remember { mutableStateOf(prefs.getString("custom_system_description", "Regras personalizadas da campanha") ?: "Regras personalizadas da campanha") }
-    var newAttribute by remember { mutableStateOf("") }
-    var newResource by remember { mutableStateOf("") }
-    var newSkill by remember { mutableStateOf("") }
-    var testFormula by remember { mutableStateOf(prefs.getString("custom_test_formula", "1d20 + atributo + bônus") ?: "1d20 + atributo + bônus") }
-    var initiativeFormula by remember { mutableStateOf(prefs.getString("custom_initiative_formula", "1d20 + DES") ?: "1d20 + DES") }
-    val attributes = remember { mutableStateListOf<String>().apply { addAll(loadStringList(prefs.getString("custom_attributes", null), listOf("FOR", "DES", "CON", "INT", "SAB", "CAR"))) } }
-    val resources = remember { mutableStateListOf<String>().apply { addAll(loadStringList(prefs.getString("custom_resources", null), listOf("Pontos de vida", "Mana"))) } }
-    val skills = remember { mutableStateListOf<String>().apply { addAll(loadStringList(prefs.getString("custom_skills", null), listOf("Atletismo", "Percepção"))) } }
-    val dice = listOf("d4", "d6", "d8", "d10", "d12", "d20", "d100")
-    val selectedDice = remember { mutableStateListOf<String>().apply { addAll(loadStringList(prefs.getString("custom_dice", null), dice)) } }
-
-    LazyColumn(
-        modifier.fillMaxSize().padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Text("FERRAMENTAS DO MESTRE", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text("Construtor de sistemas", color = Parchment, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-            Text("Crie regras e fichas sem ficar preso a um RPG específico.", color = Muted, fontSize = 12.sp)
-        }
-        item {
-            EditorCard("IDENTIDADE DO SISTEMA", "Nome e descrição") {
-                OutlinedTextField(value = systemName, onValueChange = { systemName = it }, label = { Text("Nome do sistema") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-            }
-        }
-        item {
-            EditorCard("ATRIBUTOS", "Características usadas nas fichas") {
-                attributes.forEach { value -> EditableEntry(value) { attributes.remove(value) } }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newAttribute, onValueChange = { newAttribute = it }, label = { Text("Novo atributo") }, modifier = Modifier.weight(1f), singleLine = true)
-                    IconButton(onClick = { val v = newAttribute.trim(); if (v.isNotEmpty() && !attributes.contains(v)) attributes.add(v); newAttribute = "" }) { Icon(Icons.Default.Add, "Adicionar atributo", tint = Gold) }
-                }
-            }
-        }
-        item {
-            EditorCard("RECURSOS", "Valores que podem aumentar ou diminuir") {
-                resources.forEach { value -> EditableEntry(value) { resources.remove(value) } }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newResource, onValueChange = { newResource = it }, label = { Text("Novo recurso") }, modifier = Modifier.weight(1f), singleLine = true)
-                    IconButton(onClick = { val v = newResource.trim(); if (v.isNotEmpty() && !resources.contains(v)) resources.add(v); newResource = "" }) { Icon(Icons.Default.Add, "Adicionar recurso", tint = Gold) }
-                }
-            }
-        }
-        item {
-            EditorCard("PERÍCIAS", "Especializações ligadas aos atributos") {
-                skills.forEach { value -> EditableEntry(value) { skills.remove(value) } }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newSkill, onValueChange = { newSkill = it }, label = { Text("Nova perícia") }, modifier = Modifier.weight(1f), singleLine = true)
-                    IconButton(onClick = { val v = newSkill.trim(); if (v.isNotEmpty() && !skills.contains(v)) skills.add(v); newSkill = "" }) { Icon(Icons.Default.Add, "Adicionar perícia", tint = Gold) }
-                }
-            }
-        }
-        item {
-            EditorCard("DADOS DISPONÍVEIS", "Selecione os dados usados pelo sistema") {
-                dice.chunked(4).forEach { rowDice ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        rowDice.forEach { die ->
-                            FilterChip(
-                                selected = selectedDice.contains(die),
-                                onClick = { if (selectedDice.contains(die)) selectedDice.remove(die) else selectedDice.add(die) },
-                                label = { Text(die) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            EditorCard("FÓRMULAS", "Defina como os testes são calculados") {
-                OutlinedTextField(value = testFormula, onValueChange = { testFormula = it }, label = { Text("Fórmula de teste") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = initiativeFormula, onValueChange = { initiativeFormula = it }, label = { Text("Fórmula de iniciativa") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Text("Exemplo: 1d20 + FOR + proficiência. A validação e execução das fórmulas será implementada no motor de regras.", color = Muted, fontSize = 11.sp)
-            }
-        }
-        item {
-            Button(
-                onClick = {
-                    val json = JSONObject().apply {
-                        put("name", systemName)
-                        put("description", description)
-                        put("attributes", JSONArray(attributes))
-                        put("resources", JSONArray(resources))
-                        put("skills", JSONArray(skills))
-                        put("dice", JSONArray(selectedDice))
-                        put("testFormula", testFormula)
-                        put("initiativeFormula", initiativeFormula)
-                    }
-                    prefs.edit()
-                        .putString("custom_system_json", json.toString())
-                        .putString("custom_system_name", systemName)
-                        .putString("custom_system_description", description)
-                        .putString("custom_test_formula", testFormula)
-                        .putString("custom_initiative_formula", initiativeFormula)
-                        .putString("custom_attributes", JSONArray(attributes).toString())
-                        .putString("custom_resources", JSONArray(resources).toString())
-                        .putString("custom_skills", JSONArray(skills).toString())
-                        .putString("custom_dice", JSONArray(selectedDice).toString())
-                        .apply()
-                    saveMessage = "Sistema salvo neste aparelho."
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Blood)
-            ) {
-                Icon(Icons.Default.Save, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Salvar sistema neste aparelho")
-            }
-            if (saveMessage.isNotBlank()) Text(saveMessage, color = Gold, fontSize = 12.sp)
-        }
-        item {
-            EditorCard("RESUMO DA FICHA", "Estrutura que será usada neste sistema") {
-                Text("${attributes.size} atributos • ${resources.size} recursos • ${skills.size} perícias • ${selectedDice.size} tipos de dado", color = Parchment, fontWeight = FontWeight.SemiBold)
-                Text("Campos personalizados e regras de combate poderão ser adicionados sem alterar o núcleo do aplicativo.", color = Muted, fontSize = 11.sp)
-            }
-        }
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(12.dp)) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = Gold)
-                    Spacer(Modifier.width(10.dp))
-                    Text("Os sistemas agora podem ser salvos localmente neste aparelho. Sincronização entre contas, publicação comunitária, versionamento e execução segura de fórmulas serão etapas futuras.", color = Parchment, fontSize = 11.sp)
-                }
-            }
-        }
     }
 }
 
@@ -672,14 +544,6 @@ internal fun EditorCard(title: String, subtitle: String, content: @Composable Co
             Text(subtitle, color = Muted, fontSize = 11.sp)
             content()
         }
-    }
-}
-
-@Composable
-private fun EditableEntry(value: String, onRemove: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(value, color = Parchment, modifier = Modifier.weight(1f), fontSize = 13.sp)
-        IconButton(onClick = onRemove) { Icon(Icons.Default.DeleteOutline, contentDescription = "Excluir $value", tint = Muted) }
     }
 }
 

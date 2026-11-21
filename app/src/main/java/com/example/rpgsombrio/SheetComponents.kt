@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -59,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.data.SystemOption
 import com.example.rpgsombrio.data.SystemProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -217,11 +220,52 @@ internal fun ConfirmDeleteDialog(name: String, what: String, onConfirm: () -> Un
     )
 }
 
+/**
+ * Seletor de sistema em diálogo. [onPick] recebe o id escolhido (ou "" para "Todos os sistemas",
+ * quando [allowAll] está ligado). [campaignId] marca o sistema da campanha.
+ */
+@Composable
+internal fun SystemPickerDialog(
+    title: String,
+    options: List<SystemOption>,
+    currentId: String,
+    campaignId: String? = null,
+    allowAll: Boolean = false,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    @Composable
+    fun PickRow(name: String, note: String, selected: Boolean, onClick: () -> Unit) {
+        Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 4.dp)) {
+            Text(name, color = if (selected) Gold else Parchment, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+            if (note.isNotBlank()) Text(note, color = Muted, fontSize = 11.sp)
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                if (allowAll) item { PickRow("Todos os sistemas", "Aparece em qualquer ficha", currentId.isBlank()) { onPick("") } }
+                items(options, key = { it.id }) { option ->
+                    val note = listOfNotNull(
+                        if (option.id == campaignId) "Sistema da campanha" else null,
+                        if (option.builtIn) "Modelo de fábrica" else "Criado por você"
+                    ).joinToString(" • ")
+                    PickRow(option.name, note, option.id == currentId) { onPick(option.id) }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
 /** Grade de atributos (3 por linha) guiada pelo perfil do sistema. */
 @Composable
 internal fun AttributeGrid(profile: SystemProfile, values: Map<String, Int>, onChange: (String, Int) -> Unit) {
     if (profile.attributes.isEmpty()) {
-        EmptyHint("Este sistema ainda não tem atributos. Defina-os no Construtor de sistemas.")
+        EmptyHint("Este sistema ainda não tem atributos. Defina-os na aba Sistemas.")
         return
     }
     profile.attributes.chunked(3).forEach { row ->
@@ -229,9 +273,9 @@ internal fun AttributeGrid(profile: SystemProfile, values: Map<String, Int>, onC
             row.forEach { attr ->
                 val value = values[attr.key] ?: attr.default
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    NumberField(attr.abbr, value, { onChange(attr.key, it) }, Modifier.fillMaxWidth())
+                    NumberField(attr.abbr, value, { onChange(attr.key, attr.clamp(it)) }, Modifier.fillMaxWidth())
                     if (attr.hasModifier) {
-                        Text(signed(dndModifier(value)), color = Gold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(signed(attr.modifierOf(value)), color = Gold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
