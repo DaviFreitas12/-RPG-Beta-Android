@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema escuro desde o primeiro frame: evita o flash branco antes do Compose desenhar. -->
+    <style name="Theme.RpgSombrio" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/rpg_night</item>
+        <item name="android:colorBackground">@color/rpg_night</item>
+        <item name="android:statusBarColor">@color/rpg_night</item>
+        <item name="android:navigationBarColor">@color/rpg_night</item>
+    </style>
+</resources>

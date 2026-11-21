@@ -1,15 +1,34 @@
 package com.example.rpgsombrio
 
+import java.text.Normalizer
 import kotlin.random.Random
 
-/** Núcleo determinístico em suas regras e aleatório apenas nos dados. */
-data class EngineRoll(val total: Int, val breakdown: String, val naturalRolls: List<Int> = emptyList())
+/**
+ * Núcleo do motor. As regras são determinísticas; a aleatoriedade vem apenas do [roller],
+ * que pode ser substituído em testes por valores fixos.
+ */
+data class EngineRoll(
+    val total: Int,
+    val breakdown: String,
+    val naturalRolls: List<Int> = emptyList(),
+    /** Primeiro d20 rolado na fórmula (usado para crítico/falha crítica), ou null se não houve d20. */
+    val firstD20: Int? = null
+)
 
 data class EngineCheck(
     val roll: EngineRoll,
     val difficulty: Int,
     val success: Boolean,
     val margin: Int
+)
+
+data class AttackResult(
+    val attackRoll: EngineRoll,
+    val targetArmorClass: Int,
+    val hit: Boolean,
+    val critical: Boolean,
+    val criticalMiss: Boolean,
+    val damageRoll: EngineRoll?
 )
 
 data class Combatant(
@@ -22,11 +41,22 @@ data class Combatant(
     val conditions: List<String> = emptyList()
 )
 
-class RpgEngine(private val random: Random = Random.Default) {
-    fun roll(expression: String, variables: Map<String, Int> = emptyMap()): EngineRoll {
-        val parser = FormulaParser(expression, variables, random)
-        val result = parser.parse()
-        return EngineRoll(result.value, result.parts.joinToString(" + "), result.naturalRolls)
+fun interface DiceRoller {
+    /** Retorna um valor entre 1 e [sides], inclusive. */
+    fun roll(sides: Int): Int
+}
+
+class RpgEngine(
+    private val roller: DiceRoller = DiceRoller { sides -> Random.Default.nextInt(1, sides + 1) }
+) {
+    /** [doubleDice] dobra a quantidade de dados de cada termo NdX (usado no dano de acertos críticos). */
+    fun roll(
+        expression: String,
+        variables: Map<String, Int> = emptyMap(),
+        doubleDice: Boolean = false
+    ): EngineRoll {
+        val parsed = FormulaParser(expression, variables, roller, doubleDice).parse()
+        return EngineRoll(parsed.value, "$expression = ${parsed.value}", parsed.naturalRolls, parsed.firstD20)
     }
 
     fun check(
@@ -39,26 +69,36 @@ class RpgEngine(private val random: Random = Random.Default) {
         return EngineCheck(result, difficulty, margin >= 0, margin)
     }
 
+    /**
+     * Resolve um ataque no estilo d20: 20 natural sempre acerta e dobra os dados do dano;
+     * 1 natural sempre erra. Sem d20 na fórmula, vale apenas a comparação com a defesa.
+     */
     fun attack(
         attackExpression: String,
         damageExpression: String,
         targetArmorClass: Int,
         variables: Map<String, Int> = emptyMap()
-    ): Pair<EngineRoll, EngineRoll?> {
+    ): AttackResult {
         val attack = roll(attackExpression, variables)
-        return if (attack.total >= targetArmorClass) attack to roll(damageExpression, variables) else attack to null
+        val critical = attack.firstD20 == 20
+        val criticalMiss = attack.firstD20 == 1
+        val hit = critical || (!criticalMiss && attack.total >= targetArmorClass)
+        val damage = if (hit) roll(damageExpression, variables, doubleDice = critical) else null
+        return AttackResult(attack, targetArmorClass, hit, critical, criticalMiss, damage)
     }
 
-    private data class Parsed(val value: Int, val parts: List<String>, val naturalRolls: List<Int> = emptyList())
+    private data class Parsed(val value: Int, val naturalRolls: List<Int>, val firstD20: Int?)
 
     private class FormulaParser(
         private val source: String,
-        private val variables: Map<String, Int>,
-        private val random: Random
+        variables: Map<String, Int>,
+        private val roller: DiceRoller,
+        private val doubleDice: Boolean
     ) {
         private val input = source.replace("−", "-").replace("×", "*").replace("÷", "/")
         private var index = 0
         private val natural = mutableListOf<Int>()
+        private var firstD20: Int? = null
         private val normalizedVariables = variables.entries.associate { normalize(it.key) to it.value }
 
         fun parse(): Parsed {
@@ -66,7 +106,7 @@ class RpgEngine(private val random: Random = Random.Default) {
             val value = expression()
             skipSpaces()
             require(index == input.length) { "Trecho não reconhecido: '${input.substring(index)}'." }
-            return Parsed(value, listOf("$source = $value"), natural.toList())
+            return Parsed(value, natural.toList(), firstD20)
         }
 
         private fun expression(): Int {
@@ -90,7 +130,8 @@ class RpgEngine(private val random: Random = Random.Default) {
                     consume('/') -> {
                         val divisor = factor()
                         require(divisor != 0) { "Não é permitido dividir por zero." }
-                        value / divisor
+                        // Arredonda para baixo (floor), como no modificador de atributo: (8 - 10) / 2 = -1.
+                        Math.floorDiv(value, divisor)
                     }
                     else -> return value
                 }
@@ -109,23 +150,35 @@ class RpgEngine(private val random: Random = Random.Default) {
             }
             val start = index
             val number = readDigits()
-            skipSpaces()
-            if (consume('d') || consume('D')) {
-                val count = number.ifBlank { "1" }.toInt()
+            // "d" só inicia um dado quando seguido de dígitos; assim "DES" continua sendo uma variável.
+            if (isDiceMarker()) {
+                index++ // consome o 'd'
+                val baseCount = if (number.isBlank()) 1 else number.toIntOrNull() ?: 0
                 val sides = readDigits().toIntOrNull() ?: error("Informe os lados do dado após o d.")
-                require(count in 1..100) { "A quantidade de dados deve ficar entre 1 e 100." }
+                require(baseCount in 1..100) { "A quantidade de dados deve ficar entre 1 e 100." }
                 require(sides in 2..1000) { "O dado precisa ter entre 2 e 1000 lados." }
-                val rolls = List(count) { random.nextInt(1, sides + 1) }
-                natural.addAll(rolls)
-                return rolls.sum()
+                val count = if (doubleDice) baseCount * 2 else baseCount
+                var sum = 0
+                repeat(count) {
+                    val r = roller.roll(sides)
+                    if (sides == 20 && firstD20 == null) firstD20 = r
+                    natural.add(r)
+                    sum += r
+                }
+                return sum
             }
-            if (number.isNotBlank()) return number.toInt()
+            if (number.isNotBlank()) {
+                return number.toIntOrNull() ?: error("Número grande demais: $number.")
+            }
             index = start
             val identifier = readIdentifier()
             require(identifier.isNotBlank()) { "Esperava um número, dado, atributo ou parêntese na posição ${index + 1}." }
-            val key = normalize(identifier)
-            return normalizedVariables[key] ?: error("Variável '$identifier' não foi informada. Cadastre o valor ou use um número.")
+            return normalizedVariables[normalize(identifier)]
+                ?: error("Variável '$identifier' não foi informada. Cadastre o valor ou use um número.")
         }
+
+        private fun isDiceMarker(): Boolean =
+            index + 1 < input.length && (input[index] == 'd' || input[index] == 'D') && input[index + 1].isDigit()
 
         private fun readDigits(): String {
             val start = index
@@ -135,22 +188,28 @@ class RpgEngine(private val random: Random = Random.Default) {
 
         private fun readIdentifier(): String {
             val start = index
-            while (index < input.length && (input[index].isLetter() || input[index] == '_' || input[index] == 'ç' || input[index] == 'ã' || input[index] == 'õ')) index++
+            if (index < input.length && (input[index].isLetter() || input[index] == '_')) {
+                index++
+                while (index < input.length && (input[index].isLetterOrDigit() || input[index] == '_')) index++
+            }
             return input.substring(start, index)
         }
 
         private fun skipSpaces() { while (index < input.length && input[index].isWhitespace()) index++ }
+
         private fun consume(char: Char): Boolean {
-            if (index < input.length && input[index].equals(char, ignoreCase = true)) { index++; return true }
+            if (index < input.length && input[index] == char) { index++; return true }
             return false
         }
 
-        private fun normalize(value: String): String = value.trim().uppercase()
-            .replace("Á", "A").replace("À", "A").replace("Â", "A").replace("Ã", "A")
-            .replace("É", "E").replace("Ê", "E").replace("Í", "I").replace("Ó", "O")
-            .replace("Ô", "O").replace("Õ", "O").replace("Ú", "U").replace("Ç", "C")
-            .replace("PROFICIENCIA", "PROF").replace("PROFICIÊNCIA", "PROF")
+        /** Maiúsculas, sem acentos; "PROFICIÊNCIA" vira "PROF". */
+        private fun normalize(value: String): String {
+            val plain = Normalizer.normalize(value.trim().uppercase(), Normalizer.Form.NFD)
+                .replace(Regex("\\p{Mn}+"), "")
+            return if (plain == "PROFICIENCIA") "PROF" else plain
+        }
     }
 }
 
-fun dndModifier(score: Int): Int = kotlin.math.floor((score - 10) / 2.0).toInt()
+/** Modificador de atributo estilo D&D: floor((valor - 10) / 2). */
+fun dndModifier(score: Int): Int = Math.floorDiv(score - 10, 2)

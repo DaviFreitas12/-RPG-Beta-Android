@@ -3,8 +3,18 @@ package com.example.rpgsombrio
 import android.os.Bundle
 import android.content.Context
 import android.net.Uri
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 import androidx.activity.ComponentActivity
@@ -21,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,13 +53,63 @@ private val Muted = Color(0xFFC0AD91)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Night.toArgb()),
+            navigationBarStyle = SystemBarStyle.dark(Night.toArgb())
+        )
         setContent { RpgApp() }
+    }
+}
+
+private const val PORTRAIT_MAX_PX = 512
+
+/** Decodifica a imagem já reduzida (sem carregar o original inteiro na memória). */
+private fun decodeScaled(context: Context, uri: Uri, maxPx: Int): Bitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) sample *= 2
+    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+}.getOrNull()
+
+/** Copia o retrato escolhido para o armazenamento do app, reduzido; o URI da galeria deixa de ser necessário. */
+private fun importPortrait(context: Context, source: Uri): String? {
+    val bitmap = decodeScaled(context, source, PORTRAIT_MAX_PX) ?: return null
+    val dir = File(context.filesDir, "portraits").apply { mkdirs() }
+    val file = File(dir, "${UUID.randomUUID()}.jpg")
+    return runCatching {
+        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        Uri.fromFile(file).toString()
+    }.getOrNull()
+}
+
+/** Remove o arquivo do retrato somente se ele foi criado pelo app (nunca arquivos da galeria). */
+private fun deletePortraitFile(context: Context, uriString: String) {
+    if (uriString.isBlank()) return
+    runCatching {
+        val path = Uri.parse(uriString).takeIf { it.scheme == "file" }?.path ?: return
+        val file = File(path)
+        if (file.parentFile == File(context.filesDir, "portraits")) file.delete()
+    }
+}
+
+@Composable
+private fun Portrait(uriString: String, name: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, uriString) {
+        value = withContext(Dispatchers.IO) { decodeScaled(context, Uri.parse(uriString), 256) }
+    }
+    bitmap?.let {
+        Image(bitmap = it.asImageBitmap(), contentDescription = "Retrato de $name",
+            modifier = Modifier.size(64.dp), contentScale = ContentScale.Crop)
     }
 }
 
 @Composable
 private fun RpgApp() {
-    var selected by remember { mutableStateOf("Campanha") }
+    var selected by rememberSaveable { mutableStateOf("Campanha") }
+    BackHandler(enabled = selected in listOf("Bestiário", "Grimório", "Itens")) { selected = "Biblioteca" }
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Gold, onPrimary = Night,
@@ -301,11 +362,23 @@ private fun LocalRecordsScreen(
     var detail by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var portraitUri by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    var portraitError by remember { mutableStateOf(false) }
+    // Retratos escolhidos nesta edição que ainda não foram salvos; são apagados se o diálogo for cancelado.
+    val pendingPortraits = remember { mutableListOf<String>() }
     val portraitPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
-            portraitUri = uri.toString()
+        if (uri != null) scope.launch {
+            val imported = withContext(Dispatchers.IO) { importPortrait(context, uri) }
+            if (imported != null) {
+                pendingPortraits.add(imported)
+                portraitUri = imported
+                portraitError = false
+            } else portraitError = true
         }
+    }
+    fun discardPendingPortraits(keep: String = "") {
+        pendingPortraits.filter { it != keep }.forEach { deletePortraitFile(context, it) }
+        pendingPortraits.clear()
     }
     var deleteTarget by remember { mutableStateOf<LocalRecord?>(null) }
 
@@ -317,6 +390,7 @@ private fun LocalRecordsScreen(
         detail = record?.detail ?: placeholders[2]
         notes = record?.notes ?: placeholders[3]
         portraitUri = record?.imageUri ?: ""
+        portraitError = false
         dialogOpen = true
     }
 
@@ -347,10 +421,7 @@ private fun LocalRecordsScreen(
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .22f))) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (allowPortrait && record.imageUri.isNotBlank()) {
-                            val avatar = remember(record.imageUri) { runCatching { context.contentResolver.openInputStream(Uri.parse(record.imageUri))?.use { BitmapFactory.decodeStream(it) } }.getOrNull() }
-                            if (avatar != null) Image(bitmap = avatar.asImageBitmap(), contentDescription = "Retrato de ${record.name}", modifier = Modifier.size(64.dp), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                        }
+                        if (allowPortrait && record.imageUri.isNotBlank()) Portrait(record.imageUri, record.name)
                         Column(Modifier.weight(1f)) {
                             Text(record.name, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             if (record.category.isNotBlank()) Text(record.category, color = Gold, fontSize = 12.sp)
@@ -371,7 +442,7 @@ private fun LocalRecordsScreen(
     }
     if (dialogOpen) {
         AlertDialog(
-            onDismissRequest = { dialogOpen = false },
+            onDismissRequest = { discardPendingPortraits(); dialogOpen = false },
             title = { Text(if (editingId == null) "Novo registro" else "Editar registro") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -386,6 +457,7 @@ private fun LocalRecordsScreen(
                             Text(if (portraitUri.isBlank()) "Escolher retrato da galeria" else "Trocar retrato")
                         }
                         if (portraitUri.isNotBlank()) Text("Imagem selecionada para esta ficha.", color = Gold, fontSize = 11.sp)
+                        if (portraitError) Text("Não foi possível ler essa imagem.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
                     }
                 }
             },
@@ -395,13 +467,16 @@ private fun LocalRecordsScreen(
                         val record = LocalRecord(editingId ?: UUID.randomUUID().toString(), name.trim(),
                             category.trim(), detail.trim(), notes.trim(), portraitUri)
                         val index = records.indexOfFirst { it.id == record.id }
+                        val previousImage = if (index >= 0) records[index].imageUri else ""
                         if (index >= 0) records[index] = record else records.add(0, record)
                         persist()
+                        if (previousImage != portraitUri) deletePortraitFile(context, previousImage)
+                        discardPendingPortraits(keep = portraitUri)
                         dialogOpen = false
                     }
                 }) { Text("Salvar") }
             },
-            dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { discardPendingPortraits(); dialogOpen = false }) { Text("Cancelar") } }
         )
     }
     deleteTarget?.let { target ->
@@ -413,6 +488,7 @@ private fun LocalRecordsScreen(
                 TextButton(onClick = {
                     records.removeAll { it.id == target.id }
                     persist()
+                    deletePortraitFile(context, target.imageUri)
                     deleteTarget = null
                 }) { Text("Excluir") }
             },
@@ -588,14 +664,18 @@ private fun RpgEngineScreen(modifier: Modifier = Modifier) {
             } catch (_: Exception) { clear() }
         }
     }
-    var activeTurn by remember { mutableIntStateOf(0) }
-    val ordered = combatants.sortedByDescending { it.initiative }
+    // O turno ativo é guardado pelo id do combatente, não por posição: adicionar ou remover alguém não troca a vez.
+    var activeId by remember { mutableStateOf(prefs.getString("engine_active_id", "") ?: "") }
+    val ordered = combatants.sortedWith(
+        compareByDescending<Combatant> { it.initiative }.thenBy { it.name.lowercase() }.thenBy { it.id }
+    )
+    val activeIndex = ordered.indexOfFirst { it.id == activeId }.coerceAtLeast(0)
     fun persistCombat() {
         val array = JSONArray()
         combatants.forEach { c -> array.put(JSONObject().put("id", c.id).put("name", c.name)
             .put("initiative", c.initiative).put("currentHp", c.currentHp).put("maxHp", c.maxHp)
             .put("armorClass", c.armorClass).put("conditions", JSONArray(c.conditions))) }
-        prefs.edit().putString("engine_combatants", array.toString()).apply()
+        prefs.edit().putString("engine_combatants", array.toString()).putString("engine_active_id", activeId).apply()
     }
     fun variables() = mapOf(
         "FOR" to (strength.toIntOrNull() ?: 0), "DES" to (dexterity.toIntOrNull() ?: 0),
@@ -662,12 +742,15 @@ private fun RpgEngineScreen(modifier: Modifier = Modifier) {
                     Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar e rolar iniciativa")
                 }
                 if (ordered.isNotEmpty()) {
-                    Text("TURNO ${activeTurn % ordered.size + 1} DE ${ordered.size}", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("TURNO ${activeIndex + 1} DE ${ordered.size} • ${ordered[activeIndex].name}", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ordered.forEachIndexed { index, fighter ->
-                        Card(colors = CardDefaults.cardColors(containerColor = if (index == activeTurn % ordered.size) Panel2 else Night)) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = if (index == activeIndex) Panel2 else Night),
+                            border = if (index == activeIndex) androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .6f)) else null
+                        ) {
                             Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${index + 1}. ${fighter.name}", color = Parchment, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text("${index + 1}. ${fighter.name}${if (fighter.currentHp == 0) " (caído)" else ""}", color = if (fighter.currentHp == 0) Muted else Parchment, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                     InfoPill("INI ${fighter.initiative}")
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -726,15 +809,18 @@ private fun RpgEngineScreen(modifier: Modifier = Modifier) {
                                 attackError = "Adicione pelo menos dois combatentes para resolver um ataque."
                                 attackMessage = ""
                             } else try {
-                                val (attackRoll, damageRoll) = engine.attack(attackExpression, damageExpression, target.armorClass, variables())
+                                val result = engine.attack(attackExpression, damageExpression, target.armorClass, variables())
                                 val targetIndex = combatants.indexOfFirst { it.id == target.id }
+                                val damageRoll = result.damageRoll
                                 if (damageRoll != null && targetIndex >= 0) {
                                     val updated = target.copy(currentHp = (target.currentHp - damageRoll.total).coerceAtLeast(0))
                                     combatants[targetIndex] = updated
                                     persistCombat()
-                                    attackMessage = "${attacker.name} acertou ${target.name}! Ataque ${attackRoll.total} contra CA ${target.armorClass}; dano ${damageRoll.total}. PV restantes: ${updated.currentHp}/${updated.maxHp}."
+                                    val kind = if (result.critical) "CRÍTICO! ${attacker.name} acertou" else "${attacker.name} acertou"
+                                    attackMessage = "$kind ${target.name}! Ataque ${result.attackRoll.total} contra CA ${target.armorClass}; dano ${damageRoll.total}. PV restantes: ${updated.currentHp}/${updated.maxHp}."
                                 } else {
-                                    attackMessage = "${attacker.name} errou ${target.name}. Ataque ${attackRoll.total} contra CA ${target.armorClass}."
+                                    val kind = if (result.criticalMiss) "Falha crítica! ${attacker.name} errou" else "${attacker.name} errou"
+                                    attackMessage = "$kind ${target.name}. Ataque ${result.attackRoll.total} contra CA ${target.armorClass}."
                                 }
                                 attackError = ""
                             } catch (e: Exception) {
@@ -748,8 +834,16 @@ private fun RpgEngineScreen(modifier: Modifier = Modifier) {
                         if (attackError.isNotBlank()) Text(attackError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { if (ordered.isNotEmpty()) activeTurn = (activeTurn + 1) % ordered.size }, modifier = Modifier.weight(1f)) { Text("Próximo turno") }
-                        OutlinedButton(onClick = { combatants.clear(); activeTurn = 0; persistCombat() }, modifier = Modifier.weight(1f)) { Text("Encerrar combate") }
+                        OutlinedButton(onClick = {
+                            if (ordered.isNotEmpty()) {
+                                // Avança para o próximo combatente em pé; se todos caíram, apenas passa a vez.
+                                val steps = (1..ordered.size).map { (activeIndex + it) % ordered.size }
+                                val next = steps.firstOrNull { ordered[it].currentHp > 0 } ?: steps.first()
+                                activeId = ordered[next].id
+                                persistCombat()
+                            }
+                        }, modifier = Modifier.weight(1f)) { Text("Próximo turno") }
+                        OutlinedButton(onClick = { combatants.clear(); activeId = ""; persistCombat() }, modifier = Modifier.weight(1f)) { Text("Encerrar combate") }
                     }
                 } else Text("Nenhum combatente na iniciativa.", color = Muted, fontSize = 12.sp)
             }

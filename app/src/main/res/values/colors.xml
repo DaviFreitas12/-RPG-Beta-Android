@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="rpg_night">#FF17120F</color>
+    <color name="rpg_panel">#FF2B211A</color>
+    <color name="rpg_icon_bg">#FF000000</color>
+    <color name="rpg_gold">#FFD2AE68</color>
+</resources>
