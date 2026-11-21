@@ -174,7 +174,7 @@ class RpgEngine(
             val identifier = readIdentifier()
             require(identifier.isNotBlank()) { "Esperava um número, dado, atributo ou parêntese na posição ${index + 1}." }
             return normalizedVariables[normalize(identifier)]
-                ?: error("Variável '$identifier' não foi informada. Cadastre o valor ou use um número.")
+                ?: throw IllegalArgumentException("Variável '$identifier' não foi informada. Cadastre o valor ou use um número.")
         }
 
         private fun isDiceMarker(): Boolean =
