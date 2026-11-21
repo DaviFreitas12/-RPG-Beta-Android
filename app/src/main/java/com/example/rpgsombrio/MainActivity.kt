@@ -9,6 +9,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
@@ -42,13 +43,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.UUID
 
-private val Night = Color(0xFF17120F)       // fundo: madeira escura
-private val Panel = Color(0xFF2B211A)       // painéis: couro
-private val Panel2 = Color(0xFF3B2B20)      // painéis elevados
-private val Blood = Color(0xFF7D2934)       // vinho medieval
-private val Gold = Color(0xFFD2AE68)        // filetes e destaques
-private val Parchment = Color(0xFFF0E2C4)   // texto de pergaminho
-private val Muted = Color(0xFFC0AD91)
+internal val Night = Color(0xFF17120F)       // fundo: madeira escura
+internal val Panel = Color(0xFF2B211A)       // painéis: couro
+internal val Panel2 = Color(0xFF3B2B20)      // painéis elevados
+internal val Blood = Color(0xFF7D2934)       // vinho medieval
+internal val Gold = Color(0xFFD2AE68)        // filetes e destaques
+internal val Parchment = Color(0xFFF0E2C4)   // texto de pergaminho
+internal val Muted = Color(0xFFC0AD91)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,7 +75,7 @@ private fun decodeScaled(context: Context, uri: Uri, maxPx: Int): Bitmap? = runC
 }.getOrNull()
 
 /** Copia o retrato escolhido para o armazenamento do app, reduzido; o URI da galeria deixa de ser necessário. */
-private fun importPortrait(context: Context, source: Uri): String? {
+internal fun importPortrait(context: Context, source: Uri): String? {
     val bitmap = decodeScaled(context, source, PORTRAIT_MAX_PX) ?: return null
     val dir = File(context.filesDir, "portraits").apply { mkdirs() }
     val file = File(dir, "${UUID.randomUUID()}.jpg")
@@ -85,7 +86,7 @@ private fun importPortrait(context: Context, source: Uri): String? {
 }
 
 /** Remove o arquivo do retrato somente se ele foi criado pelo app (nunca arquivos da galeria). */
-private fun deletePortraitFile(context: Context, uriString: String) {
+internal fun deletePortraitFile(context: Context, uriString: String) {
     if (uriString.isBlank()) return
     runCatching {
         val path = Uri.parse(uriString).takeIf { it.scheme == "file" }?.path ?: return
@@ -95,14 +96,14 @@ private fun deletePortraitFile(context: Context, uriString: String) {
 }
 
 @Composable
-private fun Portrait(uriString: String, name: String) {
+internal fun Portrait(uriString: String, name: String, size: androidx.compose.ui.unit.Dp = 64.dp) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val bitmap by produceState<Bitmap?>(null, uriString) {
         value = withContext(Dispatchers.IO) { decodeScaled(context, Uri.parse(uriString), 256) }
     }
     bitmap?.let {
         Image(bitmap = it.asImageBitmap(), contentDescription = "Retrato de $name",
-            modifier = Modifier.size(64.dp), contentScale = ContentScale.Crop)
+            modifier = Modifier.size(size).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
     }
 }
 
@@ -158,13 +159,13 @@ private fun RpgApp() {
         ) { padding ->
             when (selected) {
                 "Campanha" -> CampaignScreen(Modifier.padding(padding), onNavigate = { selected = it })
-                "Personagens" -> CharacterScreen(Modifier.padding(padding))
+                "Personagens" -> CharacterSheetsScreen(Modifier.padding(padding))
                 "Sistemas" -> SystemBuilderScreen(Modifier.padding(padding))
                 "Motor" -> RpgEngineScreen(Modifier.padding(padding))
                 "Biblioteca" -> LibraryHubScreen(Modifier.padding(padding), onNavigate = { selected = it })
-                "Bestiário" -> SimpleLibraryScreen(Modifier.padding(padding), "bestiary", "Bestiário", "Cadastre e gerencie criaturas")
-                "Grimório" -> SimpleLibraryScreen(Modifier.padding(padding), "spells", "Grimório", "Cadastre e gerencie magias")
-                else -> SimpleLibraryScreen(Modifier.padding(padding), "items", "Itens", "Cadastre armas, armaduras e tesouros")
+                "Bestiário" -> BestiaryScreen(Modifier.padding(padding))
+                "Grimório" -> SpellbookScreen(Modifier.padding(padding))
+                else -> ItemsScreen(Modifier.padding(padding))
             }
         }
     }
@@ -288,211 +289,6 @@ private fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) -
                 }) { Text("Salvar") }
             },
             dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancelar") } }
-        )
-    }
-}
-
-@Composable
-private fun CharacterScreen(modifier: Modifier = Modifier) {
-    LocalRecordsScreen(modifier, "characters", "Personagens", "Fichas, atributos e pontos de vida",
-        listOf("Nome", "Classe", "Nível / PV", "Anotações"),
-        listOf("Novo personagem", "Ex.: Hemomante", "Nível 1 • 10/10 PV", ""),
-        listOf(LocalRecord("demo-davi", "Davi", "Hemomante", "Nível 2 • 20/20 PV • CA 13",
-            "Ficha inicial demonstrativa. Edite os dados para personalizar seu personagem.")),
-        allowPortrait = true)
-}
-
-private data class LocalRecord(val id: String, val name: String, val category: String, val detail: String, val notes: String, val imageUri: String = "")
-
-private fun readRecords(prefs: android.content.SharedPreferences, key: String, defaults: List<LocalRecord>): List<LocalRecord> {
-    val raw = prefs.getString("records_$key", null) ?: return defaults
-    return try {
-        val arr = JSONArray(raw)
-        List(arr.length()) { i ->
-            val o = arr.getJSONObject(i)
-            LocalRecord(o.optString("id"), o.optString("name"), o.optString("category"), o.optString("detail"), o.optString("notes"), o.optString("imageUri"))
-        }
-    } catch (_: Exception) { defaults }
-}
-
-private fun saveRecords(prefs: android.content.SharedPreferences, key: String, records: List<LocalRecord>) {
-    val arr = JSONArray()
-    records.forEach { r ->
-        arr.put(JSONObject().put("id", r.id).put("name", r.name).put("category", r.category)
-            .put("detail", r.detail).put("notes", r.notes).put("imageUri", r.imageUri))
-    }
-    prefs.edit().putString("records_$key", arr.toString()).apply()
-}
-
-@Composable
-private fun SimpleLibraryScreen(modifier: Modifier, key: String, title: String, subtitle: String) {
-    val defaults = when (key) {
-        "bestiary" -> listOf(LocalRecord("sample-monster", "Lobo sombrio", "Monstro", "PV 12 • Defesa 12", "Criatura demonstrativa editável."))
-        "spells" -> listOf(LocalRecord("sample-spell", "Chama sombria", "Nível 1 • Evocação", "Alcance: 18 m", "Magia demonstrativa editável."))
-        else -> listOf(LocalRecord("sample-item", "Poção de cura", "Consumível", "Peso: 0,5 • Quantidade: 1", "Item demonstrativo editável."))
-    }
-    LocalRecordsScreen(modifier, key, title, subtitle,
-        listOf("Nome", "Tipo / categoria", "Resumo / valores", "Descrição / notas"),
-        when (key) {
-            "bestiary" -> listOf("Nova criatura", "Monstro", "PV 10 • Defesa 10", "")
-            "spells" -> listOf("Nova magia", "Nível 1 • Escola", "Alcance / dano", "")
-            else -> listOf("Novo item", "Equipamento", "Peso / bônus / quantidade", "")
-        }, defaults)
-}
-
-@Composable
-private fun LocalRecordsScreen(
-    modifier: Modifier,
-    key: String,
-    title: String,
-    subtitle: String,
-    fieldLabels: List<String>,
-    placeholders: List<String>,
-    defaults: List<LocalRecord> = emptyList(),
-    allowPortrait: Boolean = false
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
-    val records = remember(key) { mutableStateListOf<LocalRecord>().apply { addAll(readRecords(prefs, key, defaults)) } }
-    var query by remember { mutableStateOf("") }
-    var dialogOpen by remember { mutableStateOf(false) }
-    var editingId by remember { mutableStateOf<String?>(null) }
-    var name by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
-    var detail by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    var portraitUri by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    var portraitError by remember { mutableStateOf(false) }
-    // Retratos escolhidos nesta edição que ainda não foram salvos; são apagados se o diálogo for cancelado.
-    val pendingPortraits = remember { mutableListOf<String>() }
-    val portraitPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val imported = withContext(Dispatchers.IO) { importPortrait(context, uri) }
-            if (imported != null) {
-                pendingPortraits.add(imported)
-                portraitUri = imported
-                portraitError = false
-            } else portraitError = true
-        }
-    }
-    fun discardPendingPortraits(keep: String = "") {
-        pendingPortraits.filter { it != keep }.forEach { deletePortraitFile(context, it) }
-        pendingPortraits.clear()
-    }
-    var deleteTarget by remember { mutableStateOf<LocalRecord?>(null) }
-
-    fun persist() = saveRecords(prefs, key, records.toList())
-    fun openEditor(record: LocalRecord?) {
-        editingId = record?.id
-        name = record?.name ?: placeholders[0]
-        category = record?.category ?: placeholders[1]
-        detail = record?.detail ?: placeholders[2]
-        notes = record?.notes ?: placeholders[3]
-        portraitUri = record?.imageUri ?: ""
-        portraitError = false
-        dialogOpen = true
-    }
-
-    LazyColumn(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(bottom = 28.dp)) {
-        item {
-            Text(title.uppercase(), color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text(subtitle, color = Parchment, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-        }
-        item {
-            OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(),
-                label = { Text("Buscar") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
-        }
-        item {
-            Button(onClick = { openEditor(null) }, modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
-                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar")
-            }
-        }
-        val filtered = records.filter {
-            listOf(it.name, it.category, it.detail, it.notes).any { value -> value.contains(query, ignoreCase = true) }
-        }
-        if (filtered.isEmpty()) {
-            item { Text(if (query.isBlank()) "Nenhum registro ainda. Toque em Adicionar para começar." else "Nenhum resultado para essa busca.", color = Muted) }
-        }
-        items(filtered.size) { index ->
-            val record = filtered[index]
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .22f))) {
-                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (allowPortrait && record.imageUri.isNotBlank()) Portrait(record.imageUri, record.name)
-                        Column(Modifier.weight(1f)) {
-                            Text(record.name, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            if (record.category.isNotBlank()) Text(record.category, color = Gold, fontSize = 12.sp)
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        if (record.category.isNotBlank()) InfoPill(record.category)
-                        if (record.detail.isNotBlank()) InfoPill(record.detail)
-                    }
-                    if (record.notes.isNotBlank()) Text(record.notes, color = Muted, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { openEditor(record) }) { Icon(Icons.Default.Edit, null); Text("Editar") }
-                        TextButton(onClick = { deleteTarget = record }) { Icon(Icons.Default.DeleteOutline, null); Text("Excluir") }
-                    }
-                }
-            }
-        }
-    }
-    if (dialogOpen) {
-        AlertDialog(
-            onDismissRequest = { discardPendingPortraits(); dialogOpen = false },
-            title = { Text(if (editingId == null) "Novo registro" else "Editar registro") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    OutlinedTextField(name, { name = it }, label = { Text(fieldLabels[0]) }, singleLine = true)
-                    OutlinedTextField(category, { category = it }, label = { Text(fieldLabels[1]) }, singleLine = true)
-                    OutlinedTextField(detail, { detail = it }, label = { Text(fieldLabels[2]) }, singleLine = true)
-                    OutlinedTextField(notes, { notes = it }, label = { Text(fieldLabels[3]) }, minLines = 2)
-                    if (allowPortrait) {
-                        OutlinedButton(onClick = { portraitPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (portraitUri.isBlank()) "Escolher retrato da galeria" else "Trocar retrato")
-                        }
-                        if (portraitUri.isNotBlank()) Text("Imagem selecionada para esta ficha.", color = Gold, fontSize = 11.sp)
-                        if (portraitError) Text("Não foi possível ler essa imagem.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        val record = LocalRecord(editingId ?: UUID.randomUUID().toString(), name.trim(),
-                            category.trim(), detail.trim(), notes.trim(), portraitUri)
-                        val index = records.indexOfFirst { it.id == record.id }
-                        val previousImage = if (index >= 0) records[index].imageUri else ""
-                        if (index >= 0) records[index] = record else records.add(0, record)
-                        persist()
-                        if (previousImage != portraitUri) deletePortraitFile(context, previousImage)
-                        discardPendingPortraits(keep = portraitUri)
-                        dialogOpen = false
-                    }
-                }) { Text("Salvar") }
-            },
-            dismissButton = { TextButton(onClick = { discardPendingPortraits(); dialogOpen = false }) { Text("Cancelar") } }
-        )
-    }
-    deleteTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = { Text("Excluir ${target.name}?") },
-            text = { Text("Essa ação remove o registro deste aparelho.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    records.removeAll { it.id == target.id }
-                    persist()
-                    deletePortraitFile(context, target.imageUri)
-                    deleteTarget = null
-                }) { Text("Excluir") }
-            },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancelar") } }
         )
     }
 }
@@ -869,7 +665,7 @@ private fun loadStringList(raw: String?, fallback: List<String>): List<String> {
 }
 
 @Composable
-private fun EditorCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun EditorCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))) {
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(title, color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
@@ -896,7 +692,7 @@ private fun SectionTitle(title: String, subtitle: String) {
 }
 
 @Composable
-private fun InfoPill(text: String) {
+internal fun InfoPill(text: String) {
     Surface(color = Panel2, shape = RoundedCornerShape(50)) {
         Text(text, color = Parchment, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
     }
