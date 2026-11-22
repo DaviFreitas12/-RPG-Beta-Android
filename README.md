@@ -1,4 +1,4 @@
-# RPG Sombrio — Beta 0.9.0
+# RPG Sombrio — Beta 0.9.1
 
 Aplicativo Android de RPG multissistemas (Kotlin + Jetpack Compose), com identidade visual medieval sombria.
 
@@ -9,17 +9,16 @@ Aplicativo Android de RPG multissistemas (Kotlin + Jetpack Compose), com identid
 - **Sistemas**: biblioteca de sistemas criados por você (atributos com limites e modificador configurável, recursos, perícias ligadas a atributos, rótulos, blocos da ficha, dados e fórmulas). D&D 5e, D&D 2024 e Vampiro são modelos que podem ser duplicados e editados.
 - **Vínculo**: a campanha tem um sistema; cada ficha nasce nele, mas pode ser vinculada a qualquer outro (nada é apagado ao trocar).
 - **Vantagens e desvantagens**: biblioteca de traços com custo em pontos, por sistema. A ficha mostra pontos gastos, devolvidos e livres (orçamento definido no sistema).
+- **Ficha ↔ Motor (0.9.1)**: atributos, perícias, recursos e magias viram variáveis e botões de rolar; criaturas rolam ações e entram no combate; magias debitam custo; PV sincronizados com a ficha; sistemas de reserva de dados contam sucessos.
 - **Motor**: rolagens (d4–d100), fórmulas com dados e variáveis (`1d20 + DES + PROF`), testes contra CD, iniciativa com turnos e resolução de ataque (20 natural acerta e dobra os dados do dano; 1 natural erra).
 - Persistência em SharedPreferences/JSON, funcionando offline.
 
 ## O que ainda NÃO existe
 - Contas, login, campanhas multiusuário e sincronização em nuvem (Firebase não está configurado).
 - Banco Room.
-- Fichas estruturadas: atributos e PV das fichas ainda não alimentam o Motor (os valores FOR/DES/PROF do Motor são manuais).
-- O sistema escolhido na campanha ainda não altera o comportamento do Motor, e as fórmulas do sistema ainda não são executadas.
-- Bestiário e Grimório continuam com campos de estilo D&D (CA, PV, níveis de magia).
+- Itens equipados alterando atributos (a CA já é alterada), dados de fome e pares de 10 em reservas de dados.
 
-Veja `docs/CHANGELOG_0.9.0.md` para o que mudou nesta versão e `docs/ANALISE_E_ARQUITETURA.md` para o roteiro.
+Veja `docs/CHANGELOG_0.9.1.md` para o que mudou nesta versão e `docs/ANALISE_E_ARQUITETURA.md` para o roteiro.
 
 ## Compilar
 1. Android Studio estável, Android SDK 35 e JDK 17 ou 21.
@@ -30,7 +29,7 @@ Veja `docs/CHANGELOG_0.9.0.md` para o que mudou nesta versão e `docs/ANALISE_E_
 O workflow `.github/workflows/android.yml` roda os testes e gera o APK debug como artefato a cada push.
 
 ## Identidade
-- Nome exibido: RPG · Application ID: `com.example.rpgsombrio` · Versão 0.9.0 (código 10) · minSdk 26
+- Nome exibido: RPG · Application ID: `com.example.rpgsombrio` · Versão 0.9.1 (código 11) · minSdk 26
 
 ## Firebase
 O `google-services.json` foi removido do projeto (não estava em uso e apontava para um package diferente). Ao ativar o Firebase, baixe um novo arquivo para o package `com.example.rpgsombrio`, coloque-o em `app/` e aplique o plugin `com.google.gms.google-services`.

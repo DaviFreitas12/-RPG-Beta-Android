@@ -50,6 +50,8 @@ internal fun TraitsScreen(modifier: Modifier = Modifier) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var kindFilter by rememberSaveable { mutableStateOf(KIND_ALL) }
+    var systemFilter by rememberSaveable { mutableStateOf(SheetStore.activeSystemId(prefs)) }
+    val sysOptions = remember { systemOptions(prefs) }
     var deleteTarget by remember { mutableStateOf<TraitEntry?>(null) }
     fun persist() = SheetStore.saveTraits(prefs, traits.toList())
 
@@ -63,11 +65,17 @@ internal fun TraitsScreen(modifier: Modifier = Modifier) {
                 val i = traits.indexOfFirst { it.id == updated.id }
                 if (i >= 0) { traits[i] = updated; persist() }
             },
+            onDuplicate = { sid ->
+                val copy = current.copy(id = SheetStore.newId(), systemId = sid)
+                traits.add(0, copy); persist(); openId = copy.id
+            },
             onBack = { openId = null },
             onDelete = { deleteTarget = current }
         )
     } else {
+        val sysFilter = validSystemFilter(sysOptions, systemFilter)
         val filtered = traits
+            .filter { t -> fitsFilter(t.systemId, sysFilter) }
             .filter { t ->
                 when (kindFilter) {
                     KIND_ADVANTAGE -> t.isAdvantage
@@ -88,6 +96,7 @@ internal fun TraitsScreen(modifier: Modifier = Modifier) {
                 val created = SheetStore.newTrait().copy(systemId = SheetStore.activeSystemId(prefs))
                 traits.add(0, created); persist(); openId = created.id
             }
+            item { SystemFilterRow(sysOptions, sysFilter) { systemFilter = it } }
             item { ChipFilterRow(listOf(KIND_ALL, KIND_ADVANTAGE, KIND_DISADVANTAGE), kindFilter) { kindFilter = it } }
             if (filtered.isEmpty()) item {
                 EmptyHint(if (query.isBlank() && kindFilter == KIND_ALL) "Nenhum traço ainda. Toque em Novo traço." else "Nenhum resultado.")
@@ -111,14 +120,14 @@ private fun TraitCard(trait: TraitEntry, prefs: android.content.SharedPreference
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = Panel),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, (if (trait.isAdvantage) Gold else Blood).copy(alpha = .35f))
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, (if (trait.isAdvantage) Accent else Danger).copy(alpha = .35f))
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(trait.name.ifBlank { "Sem nome" }, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(trait.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             val subtitle = listOf(if (trait.isAdvantage) "Vantagem" else "Desvantagem", trait.category)
                 .filter { it.isNotBlank() }.joinToString(" • ")
-            Text(subtitle, color = Gold, fontSize = 12.sp)
+            Text(subtitle, color = Accent, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 InfoPill(traitCostLabel(trait))
                 InfoPill(if (trait.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, trait.systemId))
@@ -133,6 +142,7 @@ private fun TraitEditor(
     entry: TraitEntry,
     prefs: android.content.SharedPreferences,
     onChange: (TraitEntry) -> Unit,
+    onDuplicate: (String) -> Unit,
     onBack: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -146,7 +156,7 @@ private fun TraitEditor(
         item {
             CollapsibleSection("IDENTIDADE", summary = listOf(entry.name, traitCostLabel(entry)).filter { it.isNotBlank() }.joinToString(" • ")) {
                 TextInput("Nome", entry.name, { onChange(entry.copy(name = it)) })
-                Text("Tipo", color = Muted, fontSize = 11.sp)
+                Text("Tipo", color = Muted, fontSize = 12.sp)
                 ChipFilterRow(
                     listOf("Vantagem", "Desvantagem"),
                     if (entry.isAdvantage) "Vantagem" else "Desvantagem"
@@ -158,7 +168,7 @@ private fun TraitEditor(
                 Text(
                     if (entry.isAdvantage) "Vantagens gastam pontos do orçamento da ficha."
                     else "Desvantagens devolvem pontos ao orçamento da ficha.",
-                    color = Muted, fontSize = 11.sp
+                    color = Muted, fontSize = 12.sp
                 )
                 TextInput("Categoria (física, social, mental…)", entry.category, { onChange(entry.copy(category = it)) })
             }
@@ -167,15 +177,16 @@ private fun TraitEditor(
             CollapsibleSection("SISTEMA", summary = if (entry.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, entry.systemId)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Disponível em", color = Muted, fontSize = 11.sp)
+                        Text("Disponível em", color = Muted, fontSize = 12.sp)
                         Text(
                             if (entry.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, entry.systemId),
-                            color = Parchment, fontWeight = FontWeight.SemiBold
+                            color = Ink, fontWeight = FontWeight.SemiBold
                         )
                     }
                     TextButton(onClick = { pickingSystem = true }) { Text("Alterar") }
                 }
-                Text("Só as fichas desse sistema veem este traço na hora de vincular.", color = Muted, fontSize = 11.sp)
+                Text("Só as fichas desse sistema veem este traço na hora de vincular.", color = Muted, fontSize = 12.sp)
+                DuplicateToSystem(systemOptions(prefs), entry.systemId, SheetStore.activeSystemId(prefs), onDuplicate)
             }
         }
         item {

@@ -48,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rpgsombrio.data.ALL_DICE_SIDES
+import com.example.rpgsombrio.data.ROLL_POOL
+import com.example.rpgsombrio.data.ROLL_SUM
 import com.example.rpgsombrio.data.RuleSystemCatalog
 import com.example.rpgsombrio.data.RuleSystemKind
 import com.example.rpgsombrio.data.SheetStore
@@ -99,10 +101,10 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
             item {
                 Button(
                     onClick = { val s = UserSystemStore.blank(); systems.add(0, s); persist(); openId = s.id },
-                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blood)
+                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Brand)
                 ) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Novo sistema em branco") }
             }
-            if (systems.isNotEmpty()) item { Text("MEUS SISTEMAS", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
+            if (systems.isNotEmpty()) item { Text("MEUS SISTEMAS", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
             items(systems, key = { it.id }) { system ->
                 SystemCard(
                     title = system.name, description = system.description,
@@ -119,7 +121,7 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
                     }) { Text("Duplicar") }
                 }
             }
-            item { Text("MODELOS PRONTOS", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
+            item { Text("MODELOS PRONTOS", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
             items(
                 RuleSystemCatalog.systems.filter { it.kind != RuleSystemKind.CUSTOM && it.kind != RuleSystemKind.GENERIC },
                 key = { it.id }
@@ -168,13 +170,13 @@ private fun SystemCard(
     Card(
         modifier = Modifier.fillMaxWidth().let { if (onOpen != null) it.clickable(onClick = onOpen) else it },
         colors = CardDefaults.cardColors(containerColor = Panel),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = if (isActive) .6f else .22f))
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, if (isActive) Accent.copy(alpha = .7f) else Hairline)
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title.ifBlank { "Sem nome" }, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(title.ifBlank { "Sem nome" }, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (description.isNotBlank()) Text(description, color = Muted, fontSize = 12.sp)
-            Text(structure, color = Gold, fontSize = 12.sp)
+            Text(structure, color = Accent, fontSize = 12.sp)
             if (isActive || usedBy > 0) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (isActive) InfoPill("Sistema da campanha")
                 if (usedBy > 0) InfoPill("$usedBy fichas")
@@ -236,7 +238,7 @@ private fun SystemEditor(
                     NumberField("Orçamento de pontos (0 = sem limite)", system.traitBudget,
                         { onChange(system.copy(traitBudget = it.coerceAtLeast(0))) })
                     Text("Vantagens gastam pontos; desvantagens devolvem. A ficha mostra quantos pontos ainda estão livres.",
-                        color = Muted, fontSize = 11.sp)
+                        color = Muted, fontSize = 12.sp)
                 }
             }
         }
@@ -246,7 +248,7 @@ private fun SystemEditor(
                 if (system.attributes.isEmpty()) EmptyHint("Nenhum atributo. Adicione abaixo.")
                 system.attributes.forEachIndexed { index, a ->
                     fun update(next: UserAttribute) = onChange(system.copy(attributes = system.attributes.replaced(index, next)))
-                    Surface(color = Panel2, shape = RoundedCornerShape(12.dp)) {
+                    Surface(color = Panel2, shape = RoundedCornerShape(14.dp)) {
                         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextInput("Nome", a.label, { update(a.copy(label = it)) }, Modifier.weight(1f))
@@ -268,7 +270,7 @@ private fun SystemEditor(
                                     NumberField("Base", a.modBase, { update(a.copy(modBase = it)) }, Modifier.weight(1f))
                                     NumberField("Divisor", a.modDivisor, { update(a.copy(modDivisor = it.coerceAtLeast(1))) }, Modifier.weight(1f))
                                 }
-                                Text("Modificador = piso((valor − base) ÷ divisor). D&D: base 10 e divisor 2.", color = Muted, fontSize = 11.sp)
+                                Text("Modificador = piso((valor − base) ÷ divisor). D&D: base 10 e divisor 2.", color = Muted, fontSize = 12.sp)
                             }
                         }
                     }
@@ -313,7 +315,7 @@ private fun SystemEditor(
                     }
                 }
                 AddRowButton("Adicionar perícia") { onChange(system.copy(skills = system.skills + UserSkill("Nova perícia"))) }
-                Text("Fichas já criadas recebem as perícias novas pelo botão \"Adicionar perícias do sistema\".", color = Muted, fontSize = 11.sp)
+                Text("Fichas já criadas recebem as perícias novas pelo botão \"Adicionar perícias do sistema\".", color = Muted, fontSize = 12.sp)
             }
         }
 
@@ -332,7 +334,20 @@ private fun SystemEditor(
                 }
                 TextInput("Fórmula de teste", system.testFormula, { onChange(system.copy(testFormula = it)) })
                 TextInput("Fórmula de iniciativa", system.initiativeFormula, { onChange(system.copy(initiativeFormula = it)) })
-                Text("Exemplo: 1d20 + DES + PROF. As fórmulas ainda não alimentam o Motor automaticamente.", color = Muted, fontSize = 11.sp)
+                Text("Exemplo: 1d20 + DES + PROF. A sigla de um atributo vale o seu modificador (ou o valor, se ele não calcula modificador). " +
+                    "A fórmula de teste sugere o texto do Motor e define o dado-base das rolagens de atributo e perícia (vazio = 1d20); " +
+                    "vazia, a iniciativa usa o dado-base + DES (quando há).", color = Muted, fontSize = 12.sp)
+                ToggleRow("Reserva de dados (conta sucessos)", system.rollStyle == ROLL_POOL) {
+                    onChange(system.copy(rollStyle = if (it) ROLL_POOL else ROLL_SUM))
+                }
+                if (system.rollStyle == ROLL_POOL) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField("Lados do dado", system.poolSides, { onChange(system.copy(poolSides = it.coerceIn(2, 1000))) }, Modifier.weight(1f))
+                        NumberField("Sucesso a partir de", system.poolTarget, { onChange(system.copy(poolTarget = it.coerceIn(2, system.poolSides))) }, Modifier.weight(1f))
+                    }
+                    Text("Testes de atributo e perícia rolam uma reserva: atributo + pontos da perícia dados; cada dado com o valor de sucesso ou mais conta um sucesso.",
+                        color = Muted, fontSize = 12.sp)
+                }
             }
         }
     }

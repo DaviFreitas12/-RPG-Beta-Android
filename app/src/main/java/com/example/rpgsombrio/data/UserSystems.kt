@@ -49,7 +49,11 @@ data class UserSystem(
     val originLabel: String = "Origem",
     val testFormula: String = "",
     val initiativeFormula: String = "",
-    val dice: List<Int> = listOf(4, 6, 8, 10, 12, 20, 100)
+    val dice: List<Int> = listOf(4, 6, 8, 10, 12, 20, 100),
+    /** [ROLL_SUM] ou [ROLL_POOL]. Em reservas, os testes contam sucessos em vez de somar. */
+    val rollStyle: String = ROLL_SUM,
+    val poolSides: Int = 10,
+    val poolTarget: Int = 6
 )
 
 val ALL_DICE_SIDES = listOf(4, 6, 8, 10, 12, 20, 100)
@@ -68,7 +72,10 @@ fun UserSystem.toProfile(): SystemProfile = SystemProfile(
     autoProficiency = false,
     conceptLabel = conceptLabel.ifBlank { "Conceito" }, originLabel = originLabel.ifBlank { "Origem" },
     usesAttacks = usesAttacks, usesSpells = usesSpells, usesInventory = usesInventory,
-    usesTraits = usesTraits, traitBudget = traitBudget
+    usesTraits = usesTraits, traitBudget = traitBudget,
+    testFormula = testFormula, initiativeFormula = initiativeFormula,
+    rollStyle = rollStyle, poolSides = poolSides, poolTarget = poolTarget,
+    dice = dice.ifEmpty { ALL_DICE_SIDES }
 )
 
 object UserSystemStore {
@@ -99,7 +106,10 @@ object UserSystemStore {
             usesSkills = profile.usesSkills, usesAttacks = profile.usesAttacks,
             usesSpells = profile.usesSpells, usesInventory = profile.usesInventory,
             usesTraits = profile.usesTraits, traitBudget = profile.traitBudget,
-            conceptLabel = profile.conceptLabel, originLabel = profile.originLabel
+            conceptLabel = profile.conceptLabel, originLabel = profile.originLabel,
+            testFormula = profile.testFormula, initiativeFormula = profile.initiativeFormula,
+            rollStyle = profile.rollStyle, poolSides = profile.poolSides, poolTarget = profile.poolTarget,
+            dice = profile.dice
         )
     }
 
@@ -183,6 +193,7 @@ object UserSystemStore {
         .put("conceptLabel", s.conceptLabel).put("originLabel", s.originLabel)
         .put("testFormula", s.testFormula).put("initiativeFormula", s.initiativeFormula)
         .put("dice", JSONArray(s.dice))
+        .put("rollStyle", s.rollStyle).put("poolSides", s.poolSides).put("poolTarget", s.poolTarget)
 
     private fun decode(o: JSONObject): UserSystem {
         fun objs(name: String): List<JSONObject> = o.optJSONArray(name).let { a ->
@@ -210,7 +221,9 @@ object UserSystemStore {
             testFormula = o.optString("testFormula"), initiativeFormula = o.optString("initiativeFormula"),
             dice = o.optJSONArray("dice").let { a ->
                 if (a == null) ALL_DICE_SIDES else List(a.length()) { a.getInt(it) }
-            }
+            },
+            rollStyle = o.optString("rollStyle", ROLL_SUM).ifBlank { ROLL_SUM },
+            poolSides = o.optInt("poolSides", 10), poolTarget = o.optInt("poolTarget", 6)
         )
     }
 }

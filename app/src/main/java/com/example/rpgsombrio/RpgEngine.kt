@@ -1,5 +1,6 @@
 package com.example.rpgsombrio
 
+import com.example.rpgsombrio.data.DamageDefense
 import java.text.Normalizer
 import kotlin.random.Random
 
@@ -38,7 +39,39 @@ data class Combatant(
     val currentHp: Int,
     val maxHp: Int,
     val armorClass: Int = 10,
-    val conditions: List<String> = emptyList()
+    val conditions: List<String> = emptyList(),
+    /** Ficha ou criatura de origem (vazio = combatente avulso, criado à mão). */
+    val sheetId: String = "",
+    /** [CombatantSource.CHARACTER], [CombatantSource.MONSTER] ou vazio. */
+    val sheetKind: String = "",
+    /** Defesas de dano e imunidades a condições do alvo (copiadas da ficha ao entrar no combate). */
+    val defenses: List<DamageDefense> = emptyList(),
+    val conditionImmunities: String = "",
+    /**
+     * Rodadas que faltam para cada condição expirar (chave = nome da condição). Condição sem entrada aqui
+     * dura até alguém removê-la. A contagem desce ao fim de cada turno de quem está afetado (ver [tickConditions]).
+     */
+    val conditionTimers: Map<String, Int> = emptyMap(),
+    /** PV temporários: absorvem o dano antes dos PV (ver [withDamage]). */
+    val tempHp: Int = 0,
+    /** Salvaguardas contra a morte (só personagens a 0 PV): 3 sucessos estabilizam, 3 falhas matam (ver Death.kt). */
+    val deathSuccesses: Int = 0,
+    val deathFailures: Int = 0
+)
+
+object CombatantSource {
+    const val CHARACTER = "character"
+    const val MONSTER = "monster"
+}
+
+/** Resultado de uma reserva de dados: cada dado >= [target] conta um sucesso. */
+data class PoolResult(
+    val rolls: List<Int>,
+    val sides: Int,
+    val target: Int,
+    val successes: Int,
+    /** Dados que tiraram o valor máximo. */
+    val maxFaces: Int
 )
 
 fun interface DiceRoller {
@@ -67,6 +100,18 @@ class RpgEngine(
         val result = roll(expression, variables)
         val margin = result.total - difficulty
         return EngineCheck(result, difficulty, margin >= 0, margin)
+    }
+
+    /**
+     * Reserva de dados: rola [dice] dados de [sides] lados e conta os que tiraram [successOn] ou mais.
+     * Serve a sistemas que contam sucessos (como Vampiro) em vez de somar o resultado.
+     */
+    fun rollPool(dice: Int, sides: Int = 10, successOn: Int = 6): PoolResult {
+        require(dice in 0..100) { "A reserva deve ter entre 0 e 100 dados." }
+        require(sides in 2..1000) { "O dado precisa ter entre 2 e 1000 lados." }
+        require(successOn in 2..sides) { "O valor de sucesso deve ficar entre 2 e $sides." }
+        val rolls = List(dice) { roller.roll(sides) }
+        return PoolResult(rolls, sides, successOn, rolls.count { it >= successOn }, rolls.count { it == sides })
     }
 
     /**

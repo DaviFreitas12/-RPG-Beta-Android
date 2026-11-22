@@ -1,5 +1,6 @@
 package com.example.rpgsombrio
 
+import com.example.rpgsombrio.data.fitsSystem
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
@@ -20,10 +21,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -141,24 +145,24 @@ private fun CharacterCard(sheet: CharacterSheet, prefs: SharedPreferences, onCli
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = Panel),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = .22f))
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Hairline)
     ) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (sheet.imageUri.isNotBlank()) Portrait(sheet.imageUri, sheet.name)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(sheet.name.ifBlank { "Sem nome" }, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(sheet.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 val subtitle = listOf(sheet.concept, sheet.origin, if (profile.usesLevels) "Nível ${sheet.level}" else "")
                     .filter { it.isNotBlank() }.joinToString(" • ")
-                if (subtitle.isNotBlank()) Text(subtitle, color = Gold, fontSize = 12.sp)
+                if (subtitle.isNotBlank()) Text(subtitle, color = Accent, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     InfoPill(profile.name)
                     profile.resources.firstOrNull()?.let { r ->
                         val v = sheet.resources[r.key] ?: ResourceValue(r.defaultMax, r.defaultMax)
                         InfoPill("${shortResourceLabel(r)} ${v.current}/${v.max}")
                     }
-                    if (profile.usesArmorClass) InfoPill("CA ${sheet.armorClass}")
+                    if (profile.usesArmorClass) InfoPill("CA ${remember(sheet.inventory, sheet.armorClass) { effectiveArmorClass(sheet, SheetStore.loadItems(prefs)) }}")
                 }
             }
         }
@@ -175,44 +179,143 @@ private fun CharacterEditor(
     onDelete: () -> Unit
 ) {
     val profile = remember(sheet.systemId) { SystemProfiles.resolve(prefs, sheet.systemId) }
-    LazyColumn(
-        modifier.fillMaxSize().padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item { EditorTopBar("Ficha • ${profile.name}", onBack, onDelete) }
-        item { IdentitySection(sheet, profile, prefs, onChange) }
-        item { ResourcesSection(sheet, profile, onChange) }
-        item {
-            CollapsibleSection("ATRIBUTOS", summary = "${profile.attributes.size} atributos") {
-                AttributeGrid(profile, sheet.attributes) { key, value ->
-                    onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+    val engine = remember { RpgEngine() }
+    val log = remember { mutableStateListOf<RollLine>() }
+    val library = remember { SheetStore.loadItems(prefs) }
+    var targetDefense by remember { mutableStateOf(0) }
+    val variables = characterVariables(sheet, profile, library)
+    val defense = targetDefense.takeIf { it > 0 }
+
+    Column(modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item { EditorTopBar("Ficha • ${profile.name}", onBack, onDelete) }
+            item { IdentitySection(sheet, profile, prefs, onChange) }
+            item { RollPanel(sheet, profile, prefs, engine, variables, targetDefense, { targetDefense = it }, log) }
+            item { ResourcesSection(sheet, profile, onChange) }
+            item {
+                CollapsibleSection("ATRIBUTOS", summary = "${profile.attributes.size} atributos") {
+                    AttributeGrid(
+                        profile, sheet.attributes,
+                        onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) }
+                    ) { key, value ->
+                        onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                    }
+                }
+            }
+            if (profile.usesProficiency && !profile.isPool) item {
+                SavesSection(sheet, profile, onChange, onRoll = { attr -> log.push(rollSaveCheck(engine, sheet, profile, attr)) })
+            }
+            if (profile.usesSkills) item {
+                SkillsSection(sheet, profile, onChange, onRoll = { skill -> log.push(rollSkillCheck(engine, sheet, profile, skill)) })
+            }
+            if (profile.usesTraits) item { TraitsSection(sheet, profile, prefs, onChange) }
+            if (profile.usesAttacks) item {
+                AttacksSection(sheet, library, onChange, onRoll = { option ->
+                    log.push(rollOption(engine, option, variables, profile, defense).line)
+                })
+            }
+            if (profile.usesSpells) item {
+                SpellsSection(sheet, prefs, onChange, onCast = { spell ->
+                    val outcome = castSpell(engine, spell, sheet, profile)
+                    log.push(outcome.line)
+                    if (outcome.cast) onChange(outcome.sheet)
+                })
+            }
+            if (profile.usesInventory) item { InventorySection(sheet, prefs, onChange) }
+            item {
+                DefensesSection(
+                    defenses = sheet.defenses, conditionImmunities = sheet.conditionImmunities,
+                    onDefensesChange = { onChange(sheet.copy(defenses = it)) },
+                    onConditionsChange = { onChange(sheet.copy(conditionImmunities = it)) }
+                )
+            }
+            item { ProficienciesSection(sheet, onChange) }
+            item { BackstorySection(sheet, onChange) }
+            item {
+                CollapsibleSection("ANOTAÇÕES", summary = sheet.notes.lineSequence().firstOrNull().orEmpty(), startExpanded = false) {
+                    TextInput("História, aliados, objetivos…", sheet.notes, { onChange(sheet.copy(notes = it)) }, singleLine = false, minLines = 5)
                 }
             }
         }
-        if (profile.usesSkills) item { SkillsSection(sheet, profile, onChange) }
-        if (profile.usesTraits) item { TraitsSection(sheet, profile, prefs, onChange) }
-        if (profile.usesAttacks) item { AttacksSection(sheet, onChange) }
-        if (profile.usesSpells) item { SpellsSection(sheet, prefs, onChange) }
-        if (profile.usesInventory) item { InventorySection(sheet, prefs, onChange) }
-        item {
-            CollapsibleSection("ANOTAÇÕES", summary = sheet.notes.lineSequence().firstOrNull().orEmpty(), startExpanded = false) {
-                TextInput("História, aliados, objetivos…", sheet.notes, { onChange(sheet.copy(notes = it)) }, singleLine = false, minLines = 5)
+        RollLogBar(log) { log.clear() }
+    }
+}
+
+/** Rolagens ligadas à ficha: iniciativa, teste por fórmula (ou reserva de dados) e envio ao combate. */
+@Composable
+private fun RollPanel(
+    sheet: CharacterSheet,
+    profile: SystemProfile,
+    prefs: SharedPreferences,
+    engine: RpgEngine,
+    variables: Map<String, Int>,
+    targetDefense: Int,
+    onDefense: (Int) -> Unit,
+    log: MutableList<RollLine>
+) {
+    var formula by remember(sheet.systemId) { mutableStateOf(defaultTestFormula(profile)) }
+    var difficulty by remember(sheet.systemId) { mutableStateOf(if (profile.isPool) 1 else 15) }
+    var poolDice by remember { mutableStateOf(3) }
+    val names = listOfNotNull(
+        if (profile.usesProficiency) "PROF" else null,
+        if (profile.usesLevels) "NIVEL" else null,
+        if (profile.usesArmorClass) "CA" else null
+    ) + profile.attributes.map { attributeVariable(it) } + profile.resources.map { variableName(shortResourceLabel(it)) }
+
+    CollapsibleSection("ROLAGENS", summary = "Iniciativa, testes e combate") {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                val result = rollInitiative(engine, profile, variables)
+                log.push(RollLine("Iniciativa: ${describeRoll(result.roll)}" + if (result.note.isBlank()) "" else " • ${result.note}"))
+            }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Casino, null); Spacer(Modifier.width(6.dp)); Text("Iniciativa") }
+            OutlinedButton(onClick = {
+                if (CombatStore.load(prefs).any { it.sheetId == sheet.id }) {
+                    log.push(RollLine("${sheet.name.ifBlank { "Personagem" }} já está no combate.", null))
+                } else {
+                    val fighter = characterCombatant(engine, sheet, profile, SheetStore.loadItems(prefs))
+                    CombatStore.add(prefs, fighter)
+                    log.push(RollLine("${fighter.name} entrou no combate (iniciativa ${fighter.initiative}). Veja na aba Motor.", true))
+                }
+            }, modifier = Modifier.weight(1f)) { Text("Ao combate") }
+        }
+        if (profile.isPool) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                NumberField("Dados da reserva", poolDice, { poolDice = it.coerceIn(0, 100) }, Modifier.weight(1f))
+                NumberField("Dificuldade", difficulty, { difficulty = it.coerceAtLeast(1) }, Modifier.weight(1f))
+                Button(onClick = { log.push(rollPoolLine(engine, "Reserva", poolDice, profile, difficulty)) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Brand)) { Text("Rolar") }
+            }
+        } else {
+            TextInput("Fórmula (ex.: 1d20 + FOR + PROF)", formula, { formula = it })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                NumberField("CD (0 = sem CD)", difficulty, { difficulty = it.coerceAtLeast(0) }, Modifier.weight(1f))
+                Button(onClick = { log.push(rollFormula(engine, "Teste", formula, variables, difficulty.takeIf { it > 0 })) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Brand)) { Text("Rolar") }
             }
         }
+        NumberField(
+            if (profile.usesArmorClass) "CA do alvo nos ataques (0 = sem alvo)" else "Defesa do alvo nos ataques (0 = sem alvo)",
+            targetDefense, { onDefense(it.coerceAtLeast(0)) }, Modifier.fillMaxWidth()
+        )
+        Text("Use na fórmula: ${names.joinToString(", ")} e o nome de cada perícia (ex.: ATLETISMO).", color = Muted, fontSize = 12.sp)
     }
 }
 
 @Composable
 private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
     var switching by remember { mutableStateOf(false) }
+    val armor = armorClassBreakdown(sheet, remember { SheetStore.loadItems(prefs) })
     CollapsibleSection("IDENTIDADE", summary = listOf(sheet.name, sheet.concept).filter { it.isNotBlank() }.joinToString(" • ")) {
         PortraitField(sheet.imageUri, sheet.name) { onChange(sheet.copy(imageUri = it)) }
         TextInput("Nome", sheet.name, { onChange(sheet.copy(name = it)) })
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Sistema", color = Muted, fontSize = 11.sp)
-                Text(systemDisplayName(prefs, sheet.systemId), color = Parchment, fontWeight = FontWeight.SemiBold)
+                Text("Sistema", color = Muted, fontSize = 12.sp)
+                Text(systemDisplayName(prefs, sheet.systemId), color = Ink, fontWeight = FontWeight.SemiBold)
             }
             TextButton(onClick = { switching = true }) { Text("Trocar sistema") }
         }
@@ -230,8 +333,17 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
                     NumberField("Prof.", sheet.proficiencyBonus, { onChange(sheet.copy(proficiencyBonus = it)) }, Modifier.weight(1f))
                 }
                 if (profile.usesArmorClass) {
-                    NumberField("CA", sheet.armorClass, { onChange(sheet.copy(armorClass = it)) }, Modifier.weight(1f))
+                    NumberField(if (armor.modified) "CA base" else "CA", sheet.armorClass, { onChange(sheet.copy(armorClass = it)) }, Modifier.weight(1f))
                 }
+            }
+            if (profile.usesArmorClass && armor.modified) {
+                Text("CA efetiva ${armor.total} (${armor.text}) — vale nas rolagens e no combate.", color = Accent, fontSize = 12.sp)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextInput("Deslocamento", sheet.speed, { onChange(sheet.copy(speed = it)) }, Modifier.weight(1f))
+            if (profile.usesLevels) {
+                NumberField("XP", sheet.experience, { onChange(sheet.copy(experience = it.coerceAtLeast(0))) }, Modifier.weight(1f))
             }
         }
     }
@@ -255,58 +367,67 @@ private fun ResourcesSection(sheet: CharacterSheet, profile: SystemProfile, onCh
         val v = sheet.resources[r.key] ?: ResourceValue(r.defaultMax, r.defaultMax)
         "${shortResourceLabel(r)} ${v.current}/${v.max}"
     }
-    CollapsibleSection("RECURSOS", summary = summary) {
+    CollapsibleSection("RECURSOS", summary = listOf(summary, sheet.conditions.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" • ")) {
         if (profile.resources.isEmpty()) EmptyHint("Nenhum recurso definido neste sistema.")
         profile.resources.forEach { r ->
             val v = sheet.resources[r.key] ?: ResourceValue(r.defaultMax, r.defaultMax)
             fun update(next: ResourceValue) = onChange(sheet.copy(resources = sheet.resources + (r.key to next)))
-            Text(r.label, color = Parchment, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(r.label, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             LinearProgressIndicator(
                 progress = { if (v.max > 0) (v.current.toFloat() / v.max).coerceIn(0f, 1f) else 0f },
-                modifier = Modifier.fillMaxWidth(), color = Gold, trackColor = Panel2
+                modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Panel2
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 IconButton(onClick = { update(v.copy(current = (v.current - 1).coerceAtLeast(0))) }) {
-                    Icon(Icons.Default.Remove, "Diminuir ${r.label}", tint = Gold)
+                    Icon(Icons.Default.Remove, "Diminuir ${r.label}", tint = Accent)
                 }
                 NumberField("Atual", v.current, { update(v.copy(current = it.coerceAtLeast(0))) }, Modifier.weight(1f))
                 Text("/", color = Muted)
                 NumberField("Máx.", v.max, { update(v.copy(max = it.coerceAtLeast(0))) }, Modifier.weight(1f))
                 IconButton(onClick = { update(v.copy(current = (v.current + 1).coerceAtMost(v.max))) }) {
-                    Icon(Icons.Default.Add, "Aumentar ${r.label}", tint = Gold)
+                    Icon(Icons.Default.Add, "Aumentar ${r.label}", tint = Accent)
                 }
             }
         }
+        VitalsExtras(sheet, profile, onChange)
     }
 }
 
 @Composable
-private fun SkillsSection(sheet: CharacterSheet, profile: SystemProfile, onChange: (CharacterSheet) -> Unit) {
-    CollapsibleSection("PERÍCIAS", summary = "${sheet.skills.size} perícias", startExpanded = false) {
-        if (sheet.skills.isEmpty()) EmptyHint("Nenhuma perícia. Adicione abaixo.")
-        sheet.skills.forEachIndexed { index, skill ->
+private fun SkillsSection(
+    sheet: CharacterSheet, profile: SystemProfile, onChange: (CharacterSheet) -> Unit,
+    onRoll: (SkillEntry) -> Unit
+) {
+    // Cada sistema tem as suas perícias: as de outros sistemas ficam guardadas na ficha, mas fora da vista.
+    val visible = sheet.skills.withIndex().filter { it.value.fitsSystem(sheet.systemId) }
+    CollapsibleSection("PERÍCIAS", summary = "${visible.size} perícias de ${profile.name}", startExpanded = false) {
+        if (visible.isEmpty()) EmptyHint("Nenhuma perícia neste sistema. Adicione abaixo ou use as do sistema.")
+        visible.forEach { (index, skill) ->
             val attr = profile.attr(skill.attributeKey)
-            val total = if (profile.usesProficiency) {
-                val mod = if (attr != null && attr.hasModifier) attr.modifierOf(sheet.attributes[attr.key] ?: attr.default) else 0
-                mod + (if (skill.proficient) sheet.proficiencyBonus else 0) + skill.extra
-            } else skill.extra
+            val total = skillBonus(profile, sheet.attributes, sheet.proficiencyBonus, skill)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (profile.usesProficiency) {
                     Checkbox(
                         checked = skill.proficient,
                         onCheckedChange = { onChange(sheet.copy(skills = sheet.skills.replaced(index, skill.copy(proficient = it)))) },
-                        colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Night)
+                        colors = CheckboxDefaults.colors(checkedColor = Accent, checkmarkColor = Night)
                     )
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(skill.name, color = Parchment, fontSize = 14.sp)
-                    if (attr != null) Text(attr.abbr, color = Muted, fontSize = 11.sp)
+                    Text(skill.name, color = Ink, fontSize = 14.sp)
+                    if (attr != null || profile.isPool) {
+                        val pool = if (profile.isPool) "reserva ${skillPoolSize(profile, sheet.attributes, skill)}" else ""
+                        Text(listOfNotNull(attr?.abbr, pool.ifBlank { null }).joinToString(" • "), color = Muted, fontSize = 12.sp)
+                    }
                 }
                 if (profile.usesProficiency) {
                     InfoPill(signed(total))
                 } else {
                     NumberField("Valor", skill.extra, { onChange(sheet.copy(skills = sheet.skills.replaced(index, skill.copy(extra = it)))) },
                         Modifier.width(96.dp))
+                }
+                IconButton(onClick = { onRoll(skill) }) {
+                    Icon(Icons.Default.Casino, "Rolar ${skill.name}", tint = Accent)
                 }
                 IconButton(onClick = { onChange(sheet.copy(skills = sheet.skills.without(index))) }) {
                     Icon(Icons.Default.DeleteOutline, "Excluir ${skill.name}", tint = Muted)
@@ -318,13 +439,13 @@ private fun SkillsSection(sheet: CharacterSheet, profile: SystemProfile, onChang
             TextInput("Nova perícia", newSkill, { newSkill = it }, Modifier.weight(1f))
             IconButton(onClick = {
                 val name = newSkill.trim()
-                if (name.isNotEmpty()) { onChange(sheet.copy(skills = sheet.skills + SkillEntry(name))); newSkill = "" }
-            }) { Icon(Icons.Default.Add, "Adicionar perícia", tint = Gold) }
+                if (name.isNotEmpty()) { onChange(sheet.copy(skills = sheet.skills + SkillEntry(name, systemId = sheet.systemId))); newSkill = "" }
+            }) { Icon(Icons.Default.Add, "Adicionar perícia", tint = Accent) }
         }
-        val missing = profile.skillTemplates.filter { t -> sheet.skills.none { it.name == t.name } }
+        val missing = profile.skillTemplates.filter { t -> visible.none { it.value.name == t.name } }
         if (missing.isNotEmpty()) {
             OutlinedButton(
-                onClick = { onChange(sheet.copy(skills = sheet.skills + missing.map { SkillEntry(it.name, it.attributeKey) })) },
+                onClick = { onChange(sheet.copy(skills = sheet.skills + missing.map { SkillEntry(it.name, it.attributeKey, systemId = sheet.systemId) })) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Adicionar ${missing.size} perícias do sistema") }
         }
@@ -335,7 +456,8 @@ private fun SkillsSection(sheet: CharacterSheet, profile: SystemProfile, onChang
 private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
     val library = remember { SheetStore.loadTraits(prefs) }
     var picking by remember { mutableStateOf(false) }
-    val linked = sheet.traitIds.mapNotNull { id -> library.firstOrNull { it.id == id } }
+    val linked = sheet.traitIds.mapNotNull { id -> library.firstOrNull { it.id == id } }.filter { it.fitsSystem(sheet.systemId) }
+    val visibleIds = sheet.traitIds.filter { id -> library.firstOrNull { it.id == id }?.fitsSystem(sheet.systemId) != false }
     val earned = linked.filter { !it.isAdvantage }.sumOf { it.cost }
     val spentOnAdvantages = linked.filter { it.isAdvantage }.sumOf { it.cost }
     val net = traitPointsSpent(linked)
@@ -350,19 +472,19 @@ private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: 
             if (budget > 0) InfoPill("Livres ${budget - net}")
         }
         if (budget > 0 && net > budget) {
-            Text("Os pontos gastos passam do orçamento do sistema ($budget).", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+            Text("Os pontos gastos passam do orçamento do sistema ($budget).", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
-        if (sheet.traitIds.isEmpty()) EmptyHint("Nenhuma vantagem ou desvantagem. Cadastre na Biblioteca e vincule aqui.")
-        sheet.traitIds.forEach { id ->
+        if (visibleIds.isEmpty()) EmptyHint("Nenhuma vantagem ou desvantagem deste sistema. Cadastre na Biblioteca e vincule aqui.")
+        visibleIds.forEach { id ->
             val trait = library.firstOrNull { it.id == id }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(trait?.name?.ifBlank { "Sem nome" } ?: "Traço removido da biblioteca",
-                        color = if (trait != null) Parchment else Muted, fontSize = 14.sp)
+                        color = if (trait != null) Ink else Muted, fontSize = 14.sp)
                     if (trait != null) {
                         val kindLabel = if (trait.isAdvantage) "Vantagem" else "Desvantagem"
                         Text(listOf(kindLabel, traitCostLabel(trait), trait.category).filter { it.isNotBlank() }.joinToString(" • "),
-                            color = if (trait.isAdvantage) Gold else Muted, fontSize = 11.sp)
+                            color = if (trait.isAdvantage) Accent else Muted, fontSize = 12.sp)
                     }
                 }
                 IconButton(onClick = { onChange(sheet.copy(traitIds = sheet.traitIds - id)) }) {
@@ -391,11 +513,11 @@ private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: 
                             }
                             Row(Modifier.fillMaxWidth().clickable { toggle() }, verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = has, onCheckedChange = { toggle() },
-                                    colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Night))
+                                    colors = CheckboxDefaults.colors(checkedColor = Accent, checkmarkColor = Night))
                                 Column {
                                     Text(trait.name.ifBlank { "Sem nome" })
                                     Text(listOf(if (trait.isAdvantage) "Vantagem" else "Desvantagem", traitCostLabel(trait))
-                                        .joinToString(" • "), fontSize = 11.sp)
+                                        .joinToString(" • "), fontSize = 12.sp)
                                 }
                             }
                         }
@@ -408,15 +530,22 @@ private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: 
 }
 
 @Composable
-private fun AttacksSection(sheet: CharacterSheet, onChange: (CharacterSheet) -> Unit) {
-    CollapsibleSection("ATAQUES", summary = "${sheet.attacks.size} ataques", startExpanded = false) {
-        if (sheet.attacks.isEmpty()) EmptyHint("Nenhum ataque cadastrado.")
+private fun AttacksSection(
+    sheet: CharacterSheet, library: List<ItemEntry>, onChange: (CharacterSheet) -> Unit,
+    onRoll: (AttackOption) -> Unit
+) {
+    val fromItems = characterAttacks(sheet.copy(attacks = emptyList()), library)
+    CollapsibleSection("ATAQUES", summary = "${sheet.attacks.size + fromItems.size} ataques", startExpanded = false) {
+        if (sheet.attacks.isEmpty() && fromItems.isEmpty()) EmptyHint("Nenhum ataque cadastrado. Itens equipados com dano aparecem aqui sozinhos.")
         sheet.attacks.forEachIndexed { index, attack ->
-            Surface(color = Panel2, shape = RoundedCornerShape(12.dp)) {
+            Surface(color = Panel2, shape = RoundedCornerShape(14.dp)) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextInput("Nome", attack.name, { onChange(sheet.copy(attacks = sheet.attacks.replaced(index, attack.copy(name = it)))) },
                             Modifier.weight(1f))
+                        IconButton(onClick = { onRoll(AttackOption(attack.name.ifBlank { "Ataque" }, attack.bonus, attack.damage)) }) {
+                            Icon(Icons.Default.Casino, "Rolar ${attack.name}", tint = Accent)
+                        }
                         IconButton(onClick = { onChange(sheet.copy(attacks = sheet.attacks.without(index))) }) {
                             Icon(Icons.Default.Close, "Remover ataque", tint = Muted)
                         }
@@ -430,26 +559,45 @@ private fun AttacksSection(sheet: CharacterSheet, onChange: (CharacterSheet) -> 
                 }
             }
         }
+        fromItems.forEach { option ->
+            Surface(color = Panel2, shape = RoundedCornerShape(14.dp)) {
+                Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(option.label, color = Ink, fontSize = 14.sp)
+                        Text(listOf(option.bonus, option.damage).filter { it.isNotBlank() }.joinToString(" • "), color = Muted, fontSize = 12.sp)
+                    }
+                    IconButton(onClick = { onRoll(option) }) { Icon(Icons.Default.Casino, "Rolar ${option.label}", tint = Accent) }
+                }
+            }
+        }
         AddRowButton("Adicionar ataque") { onChange(sheet.copy(attacks = sheet.attacks + AttackEntry())) }
     }
 }
 
 @Composable
-private fun SpellsSection(sheet: CharacterSheet, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
-    val allSpells = remember { SheetStore.loadSpells(prefs) }
-    val linked = sheet.spellIds.mapNotNull { id -> allSpells.firstOrNull { it.id == id } }
+private fun SpellsSection(
+    sheet: CharacterSheet, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit,
+    onCast: (SpellEntry) -> Unit
+) {
+    val everySpell = remember { SheetStore.loadSpells(prefs) }
+    // O seletor só oferece magias deste sistema (ou sem sistema); as já vinculadas continuam aparecendo.
+    val allSpells = everySpell.filter { it.systemId.isBlank() || it.systemId == sheet.systemId }
+    val linked = sheet.spellIds.mapNotNull { id -> everySpell.firstOrNull { it.id == id } }
+        .filter { it.fitsSystem(sheet.systemId) }
         .sortedWith(compareBy<SpellEntry>({ it.level }, { it.name.lowercase() }))
     var picking by remember { mutableStateOf(false) }
 
     CollapsibleSection("MAGIAS", summary = "${linked.size} magias vinculadas", startExpanded = false) {
         if (linked.isEmpty()) EmptyHint("Nenhuma magia vinculada. Cadastre magias no Grimório e vincule aqui.")
+        else EmptyHint("Conjurar rola o efeito com os valores da ficha e debita o custo quando ele aponta para um recurso (ex.: \"3 Mana\").")
         linked.forEach { spell ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(spell.name, color = Parchment, fontSize = 14.sp)
-                    Text(listOf(spellLevelLabel(spell.level), spell.school).filter { it.isNotBlank() }.joinToString(" • "),
-                        color = Muted, fontSize = 11.sp)
+                    Text(spell.name, color = Ink, fontSize = 14.sp)
+                    Text(listOf(spellLevelLabel(spell.level), spell.school, spell.damage, spell.cost.takeIf { it.isNotBlank() }?.let { "custo $it" })
+                        .filter { !it.isNullOrBlank() }.joinToString(" • "), color = Muted, fontSize = 12.sp)
                 }
+                TextButton(onClick = { onCast(spell) }) { Icon(Icons.Default.Casino, null); Spacer(Modifier.width(4.dp)); Text("Conjurar") }
                 IconButton(onClick = { onChange(sheet.copy(spellIds = sheet.spellIds - spell.id)) }) {
                     Icon(Icons.Default.Close, "Desvincular ${spell.name}", tint = Muted)
                 }
@@ -474,10 +622,10 @@ private fun SpellsSection(sheet: CharacterSheet, prefs: SharedPreferences, onCha
                             }
                             Row(Modifier.fillMaxWidth().clickable { toggle() }, verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = has, onCheckedChange = { toggle() },
-                                    colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Night))
+                                    colors = CheckboxDefaults.colors(checkedColor = Accent, checkmarkColor = Night))
                                 Column {
                                     Text(spell.name)
-                                    Text(listOf(spellLevelLabel(spell.level), spell.school).filter { it.isNotBlank() }.joinToString(" • "), fontSize = 11.sp)
+                                    Text(listOf(spellLevelLabel(spell.level), spell.school).filter { it.isNotBlank() }.joinToString(" • "), fontSize = 12.sp)
                                 }
                             }
                         }
@@ -493,30 +641,32 @@ private fun SpellsSection(sheet: CharacterSheet, prefs: SharedPreferences, onCha
 private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
     val library = remember { SheetStore.loadItems(prefs) }
     var picking by remember { mutableStateOf(false) }
-    val totalWeight = inventoryWeight(sheet.inventory, library)
-    val equippedCount = sheet.inventory.count { it.equipped }
-    val summary = "${sheet.inventory.size} itens • ${formatWeight(totalWeight)} kg" +
+    // Itens de outros sistemas ficam guardados na ficha, mas fora da vista, do peso e dos efeitos.
+    val visible = sheet.inventory.withIndex().filter { library.firstOrNull { item -> item.id == it.value.itemId }?.fitsSystem(sheet.systemId) != false }
+    val totalWeight = inventoryWeight(visible.map { it.value }, library)
+    val equippedCount = visible.count { it.value.equipped }
+    val summary = "${visible.size} itens • ${formatWeight(totalWeight)} kg" +
         if (equippedCount > 0) " • $equippedCount equipados" else ""
 
     CollapsibleSection("INVENTÁRIO", summary = summary, startExpanded = false) {
-        if (sheet.inventory.isEmpty()) EmptyHint("Nenhum item. Adicione itens da biblioteca.")
-        sheet.inventory.forEachIndexed { index, entry ->
+        if (visible.isEmpty()) EmptyHint("Nenhum item deste sistema. Adicione itens da biblioteca.")
+        visible.forEach { (index, entry) ->
             val item = library.firstOrNull { it.id == entry.itemId }
             fun update(next: InventoryEntry) = onChange(sheet.copy(inventory = sheet.inventory.replaced(index, next)))
-            Surface(color = Panel2, shape = RoundedCornerShape(12.dp)) {
+            Surface(color = Panel2, shape = RoundedCornerShape(14.dp)) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = entry.equipped, onCheckedChange = { update(entry.copy(equipped = it)) },
                             enabled = item != null,
-                            colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Night)
+                            colors = CheckboxDefaults.colors(checkedColor = Accent, checkmarkColor = Night)
                         )
                         Column(Modifier.weight(1f)) {
                             Text(item?.name?.ifBlank { "Sem nome" } ?: "Item removido da biblioteca",
-                                color = if (item != null) Parchment else Muted, fontSize = 14.sp)
+                                color = if (item != null) Ink else Muted, fontSize = 14.sp)
                             val detail = if (item == null) "" else listOf(item.type, item.bonus, item.damage)
                                 .filter { it.isNotBlank() }.joinToString(" • ")
-                            if (detail.isNotBlank()) Text(detail, color = Muted, fontSize = 11.sp)
+                            if (detail.isNotBlank()) Text(detail, color = Muted, fontSize = 12.sp)
                         }
                         IconButton(onClick = { onChange(sheet.copy(inventory = sheet.inventory.without(index))) }) {
                             Icon(Icons.Default.Close, "Remover do inventário", tint = Muted)
@@ -524,15 +674,15 @@ private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, on
                     }
                     Row(Modifier.padding(start = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { update(entry.copy(quantity = (entry.quantity - 1).coerceAtLeast(1))) }) {
-                            Icon(Icons.Default.Remove, "Diminuir quantidade", tint = Gold)
+                            Icon(Icons.Default.Remove, "Diminuir quantidade", tint = Accent)
                         }
-                        Text("× ${entry.quantity}", color = Parchment, fontWeight = FontWeight.SemiBold)
+                        Text("× ${entry.quantity}", color = Ink, fontWeight = FontWeight.SemiBold)
                         IconButton(onClick = { update(entry.copy(quantity = entry.quantity + 1)) }) {
-                            Icon(Icons.Default.Add, "Aumentar quantidade", tint = Gold)
+                            Icon(Icons.Default.Add, "Aumentar quantidade", tint = Accent)
                         }
                         Spacer(Modifier.weight(1f))
                         if (item != null && item.weight > 0.0) {
-                            Text("${formatWeight(item.weight * entry.quantity)} kg", color = Muted, fontSize = 11.sp,
+                            Text("${formatWeight(item.weight * entry.quantity)} kg", color = Muted, fontSize = 12.sp,
                                 modifier = Modifier.padding(end = 10.dp))
                         }
                     }
@@ -540,7 +690,8 @@ private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, on
             }
         }
         OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) { Text("Adicionar item da biblioteca") }
-        TextInput("Itens avulsos, moedas e anotações", sheet.equipment, { onChange(sheet.copy(equipment = it)) },
+        TextInput("Dinheiro (ex.: 12 po, 5 pp)", sheet.money, { onChange(sheet.copy(money = it)) })
+        TextInput("Itens avulsos e anotações", sheet.equipment, { onChange(sheet.copy(equipment = it)) },
             singleLine = false, minLines = 3)
     }
 
@@ -553,7 +704,7 @@ private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, on
                     Text("A biblioteca está vazia. Cadastre itens na aba Itens primeiro.")
                 } else {
                     LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                        items(library.sortedWith(compareBy<ItemEntry>({ it.type }, { it.name.lowercase() })), key = { it.id }) { item ->
+                        items(library.filter { it.fitsSystem(sheet.systemId) }.sortedWith(compareBy<ItemEntry>({ it.type }, { it.name.lowercase() })), key = { it.id }) { item ->
                             val has = sheet.inventory.any { it.itemId == item.id }
                             val toggle = {
                                 onChange(sheet.copy(inventory = if (has) sheet.inventory.filterNot { it.itemId == item.id }
@@ -561,11 +712,11 @@ private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, on
                             }
                             Row(Modifier.fillMaxWidth().clickable { toggle() }, verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = has, onCheckedChange = { toggle() },
-                                    colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Night))
+                                    colors = CheckboxDefaults.colors(checkedColor = Accent, checkmarkColor = Night))
                                 Column {
                                     Text(item.name.ifBlank { "Sem nome" })
                                     Text(listOf(item.type, if (item.weight > 0.0) "${formatWeight(item.weight)} kg" else "")
-                                        .filter { it.isNotBlank() }.joinToString(" • "), fontSize = 11.sp)
+                                        .filter { it.isNotBlank() }.joinToString(" • "), fontSize = 12.sp)
                                 }
                             }
                         }

@@ -27,5 +27,5 @@ As fórmulas não devem ser avaliadas com `eval`. Implementar um parser limitado
 5. Sincronização Firestore e regras de acesso por campanha.
 
 
-## Atualização 0.9.0
-O construtor passou a ser uma biblioteca de sistemas persistida no aparelho (`user_systems`, JSON). Veja `CHANGELOG_0.9.0.md`. Continuam pendentes: execução das fórmulas no Motor, versionamento de sistemas e Room/Firestore.
+## Atualização 0.9.1
+O construtor passou a ser uma biblioteca de sistemas persistida no aparelho (`user_systems`, JSON). Veja `CHANGELOG_0.9.1.md`. Continuam pendentes: execução das fórmulas no Motor, versionamento de sistemas e Room/Firestore.

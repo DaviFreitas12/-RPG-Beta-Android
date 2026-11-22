@@ -15,8 +15,16 @@ data class SkillEntry(
     val name: String,
     val attributeKey: String = "",
     val proficient: Boolean = false,
-    val extra: Int = 0
+    val extra: Int = 0,
+    /** Sistema a que a perícia pertence. Vazio (fichas antigas) = aparece em qualquer sistema. */
+    val systemId: String = ""
 )
+
+/** Vale para o sistema [sid]? Registros sem sistema valem para todos. */
+fun SkillEntry.fitsSystem(sid: String): Boolean = systemId.isBlank() || systemId == sid
+fun ItemEntry.fitsSystem(sid: String): Boolean = systemId.isBlank() || systemId == sid
+fun SpellEntry.fitsSystem(sid: String): Boolean = systemId.isBlank() || systemId == sid
+fun TraitEntry.fitsSystem(sid: String): Boolean = systemId.isBlank() || systemId == sid
 
 data class AttackEntry(val name: String = "", val bonus: String = "", val damage: String = "")
 
@@ -41,11 +49,20 @@ data class ItemEntry(
     val damage: String = "",
     val properties: String = "",
     val attunement: Boolean = false,
-    val description: String = ""
+    val description: String = "",
+    /**
+     * Efeito na CA quando equipado. Em itens do tipo [ARMOR_TYPE] é o valor base da armadura (substitui a CA base
+     * da ficha; vale a maior); nos demais tipos é um bônus somado (escudo +2, anel +1). 0 = sem efeito.
+     */
+    val armorClass: Int = 0,
+    /** Sistema a que o item pertence (cada sistema usa o item de um jeito). Vazio = vale para todos. */
+    val systemId: String = ""
 )
 
 /** Linha do inventário de um personagem: referência a um [ItemEntry] da biblioteca. */
 data class InventoryEntry(val itemId: String, val quantity: Int = 1, val equipped: Boolean = false)
+
+const val ARMOR_TYPE = "Armadura"
 
 val ITEM_TYPES = listOf("Arma", "Armadura", "Escudo", "Consumível", "Ferramenta", "Mágico", "Tesouro", "Outro")
 
@@ -89,6 +106,77 @@ fun traitCostLabel(trait: TraitEntry): String = when {
     else -> "Devolve ${trait.cost} pts"
 }
 
+/** Tipos de defesa contra dano. */
+object DefenseKind {
+    const val RESISTANCE = "resist"
+    const val VULNERABILITY = "vuln"
+    const val IMMUNITY = "immune"
+    val ALL = listOf(RESISTANCE, VULNERABILITY, IMMUNITY)
+
+    fun label(kind: String): String = when (kind) {
+        RESISTANCE -> "Resistências"
+        VULNERABILITY -> "Vulnerabilidades"
+        IMMUNITY -> "Imunidades a dano"
+        else -> kind
+    }
+}
+
+/** Sugestões de tipos de dano (o campo aceita qualquer texto, para sistemas com outros tipos). */
+val DAMAGE_TYPE_SUGGESTIONS = listOf(
+    "Ácido", "Contundente", "Cortante", "Elétrico", "Energético", "Frio", "Fogo",
+    "Necrótico", "Perfurante", "Psíquico", "Radiante", "Trovejante", "Venenoso",
+    "Não mágico", "Prata"
+)
+
+/** Condições que a ficha do personagem pode marcar como ativas. */
+val CONDITION_SUGGESTIONS = listOf(
+    "Agarrado", "Amedrontado", "Atordoado", "Caído", "Cego", "Enfeitiçado", "Envenenado", "Exausto",
+    "Imobilizado", "Incapacitado", "Inconsciente", "Invisível", "Paralisado", "Petrificado", "Surdo"
+)
+
+/** Uma defesa contra um tipo de dano: [kind] é um [DefenseKind]; [type] é o tipo de dano (ex.: "Fogo"). */
+data class DamageDefense(val kind: String, val type: String)
+
+/** Multiplicador de dano: imunidade zera; resistência e vulnerabilidade se anulam quando juntas (como no D&D 5e). */
+private fun normalizeDamageType(raw: String): String =
+    raw.trim().lowercase().trimEnd('.', ',', ';').removePrefix("de ").removePrefix("do ").removePrefix("da ").trim()
+
+fun damageMultiplierFor(defenses: List<DamageDefense>, damageType: String): Double {
+    val wanted = normalizeDamageType(damageType)
+    if (wanted.isEmpty()) return 1.0
+    val mine = defenses.filter { normalizeDamageType(it.type) == wanted }
+    if (mine.any { it.kind == DefenseKind.IMMUNITY }) return 0.0
+    val resist = mine.any { it.kind == DefenseKind.RESISTANCE }
+    val vuln = mine.any { it.kind == DefenseKind.VULNERABILITY }
+    return when {
+        resist && !vuln -> 0.5
+        vuln && !resist -> 2.0
+        else -> 1.0
+    }
+}
+
+/** Dano final depois das defesas do alvo (resistência arredonda para baixo). */
+fun adjustedDamage(amount: Int, damageType: String, defenses: List<DamageDefense>): Int {
+    val multiplier = damageMultiplierFor(defenses, damageType)
+    return if (multiplier == 1.0) amount else (amount * multiplier).toInt().coerceAtLeast(0)
+}
+
+/** O texto de imunidades a condições (separado por vírgula, ponto e vírgula, quebra de linha ou " e ") cita a condição? */
+fun immuneToCondition(immunities: String, condition: String): Boolean =
+    immunities.split(Regex("[,;\\n]|\\s+e\\s+")).any { it.trim().equals(condition, ignoreCase = true) }
+
+/** Texto curto das defesas, ex.: "Resiste: Fogo, Frio • Vulnerável: Radiante". */
+fun defensesSummary(defenses: List<DamageDefense>): String {
+    fun part(prefix: String, kind: String): String? =
+        defenses.filter { it.kind == kind && it.type.isNotBlank() }.map { it.type }
+            .takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "$prefix: ")
+    return listOfNotNull(
+        part("Resiste", DefenseKind.RESISTANCE),
+        part("Vulnerável", DefenseKind.VULNERABILITY),
+        part("Imune", DefenseKind.IMMUNITY)
+    ).joinToString(" • ")
+}
+
 data class CharacterSheet(
     val id: String,
     val name: String = "",
@@ -106,6 +194,28 @@ data class CharacterSheet(
     val spellIds: List<String> = emptyList(),
     val inventory: List<InventoryEntry> = emptyList(),
     val traitIds: List<String> = emptyList(),
+    val defenses: List<DamageDefense> = emptyList(),
+    val conditionImmunities: String = "",
+    /** Chaves dos atributos em que a ficha tem proficiência na salvaguarda. */
+    val saveProficiencies: List<String> = emptyList(),
+    val experience: Int = 0,
+    val speed: String = "",
+    val tempHp: Int = 0,
+    val inspiration: Boolean = false,
+    val deathSuccesses: Int = 0,
+    val deathFailures: Int = 0,
+    val conditions: List<String> = emptyList(),
+    val languages: String = "",
+    val proficiencies: String = "",
+    val senses: String = "",
+    val alignment: String = "",
+    val background: String = "",
+    val appearance: String = "",
+    val personality: String = "",
+    val ideals: String = "",
+    val bonds: String = "",
+    val flaws: String = "",
+    val money: String = "",
     val equipment: String = "",
     val notes: String = ""
 )
@@ -123,7 +233,14 @@ data class MonsterSheet(
     val hpFormula: String = "",
     val speed: String = "",
     val attributes: Map<String, Int> = emptyMap(),
+    /** Texto livre das versões antigas (resistências/imunidades/vulnerabilidades juntas). Continua visível como "Outras defesas". */
     val resistances: String = "",
+    val defenses: List<DamageDefense> = emptyList(),
+    val conditionImmunities: String = "",
+    val alignment: String = "",
+    val savingThrows: String = "",
+    val skillsText: String = "",
+    val loot: String = "",
     val senses: String = "",
     val languages: String = "",
     val entries: List<NamedEntry> = emptyList(),
@@ -145,7 +262,9 @@ data class SpellEntry(
     val damage: String = "",
     val cost: String = "",
     val description: String = "",
-    val higherLevels: String = ""
+    val higherLevels: String = "",
+    /** Sistema a que a magia pertence. Vazio = vale para todos os sistemas. */
+    val systemId: String = ""
 )
 
 fun spellLevelLabel(level: Int): String = if (level <= 0) "Truque" else "Nível $level"
@@ -177,6 +296,9 @@ data class SheetAttr(
     }
 }
 
+const val ROLL_SUM = "sum"
+const val ROLL_POOL = "pool"
+
 data class SheetResource(val key: String, val label: String, val defaultMax: Int)
 
 data class SkillTemplate(val name: String, val attributeKey: String)
@@ -197,8 +319,20 @@ data class SystemProfile(
     val usesSpells: Boolean = true,
     val usesInventory: Boolean = true,
     val usesTraits: Boolean = true,
-    val traitBudget: Int = 0
+    val traitBudget: Int = 0,
+    /** Fórmula padrão de teste do sistema (ex.: "1d20 + FOR + PROF"). Vazio = o Motor deduz uma. */
+    val testFormula: String = "",
+    /** Fórmula de iniciativa do sistema. Vazio = o Motor deduz uma a partir dos atributos. */
+    val initiativeFormula: String = "",
+    /** [ROLL_SUM] (soma de dados) ou [ROLL_POOL] (reserva de dados contando sucessos). */
+    val rollStyle: String = ROLL_SUM,
+    val poolSides: Int = 10,
+    /** Em reservas de dados, cada dado com valor >= [poolTarget] é um sucesso. */
+    val poolTarget: Int = 6,
+    /** Dados oferecidos nos atalhos de rolagem do Motor. */
+    val dice: List<Int> = ALL_DICE_SIDES
 ) {
+    val isPool: Boolean get() = rollStyle == ROLL_POOL
     val usesProficiency: Boolean get() = attributes.any { it.hasModifier }
     fun attr(key: String): SheetAttr? = attributes.firstOrNull { it.key == key }
 }
@@ -219,6 +353,12 @@ object SystemProfiles {
         "Prestidigitação" to "dexterity", "Religião" to "intelligence", "Sobrevivência" to "wisdom"
     ).map { SkillTemplate(it.first, it.second) }
 
+    private val vampireSkills = listOf(
+        "Armas Brancas", "Armas de Fogo", "Atletismo", "Briga", "Condução", "Furtividade", "Ladroagem", "Ofícios",
+        "Animais", "Etiqueta", "Intimidação", "Intuição", "Liderança", "Manha", "Performance", "Persuasão", "Sobrevivência",
+        "Ciência", "Consciência", "Erudição", "Finanças", "Investigação", "Medicina", "Ocultismo", "Política", "Tecnologia"
+    ).map { SkillTemplate(it, "") }
+
     fun resolve(prefs: SharedPreferences, systemId: String): SystemProfile {
         UserSystemStore.load(prefs).firstOrNull { it.id == systemId }?.let { return it.toProfile() }
         val def = RuleSystemCatalog.systems.firstOrNull { it.id == systemId } ?: RuleSystemCatalog.systems.first()
@@ -228,9 +368,11 @@ object SystemProfiles {
                 id = def.id, name = def.name,
                 attributes = def.attributes.map { SheetAttr(it.key, it.label, it.abbreviation, 1, false) },
                 resources = def.resources.map { SheetResource(it.key, it.label, it.defaultMaximum) },
-                skillTemplates = emptyList(),
+                skillTemplates = vampireSkills,
                 usesLevels = false, usesArmorClass = false, usesSkills = true, autoProficiency = false,
-                conceptLabel = "Clã", originLabel = "Conceito"
+                conceptLabel = "Clã", originLabel = "Conceito",
+                initiativeFormula = "1d10 + DES + RAC",
+                rollStyle = ROLL_POOL, poolSides = 10, poolTarget = 6, dice = listOf(10)
             )
             else -> SystemProfile(
                 id = def.id, name = def.name,
@@ -238,7 +380,8 @@ object SystemProfiles {
                 resources = def.resources.map { SheetResource(it.key, it.label, it.defaultMaximum) },
                 skillTemplates = dndSkills,
                 usesLevels = true, usesArmorClass = true, usesSkills = true, autoProficiency = true,
-                conceptLabel = "Classe", originLabel = "Raça / origem"
+                conceptLabel = "Classe", originLabel = "Raça / origem",
+                testFormula = "1d20 + FOR + PROF", initiativeFormula = "1d20 + DES"
             )
         }
     }
@@ -287,6 +430,13 @@ private fun jsonToIntMap(o: JSONObject?): Map<String, Int> {
     return result
 }
 
+internal fun defensesToJson(list: List<DamageDefense>): JSONArray = JSONArray().also { a ->
+    list.forEach { a.put(JSONObject().put("kind", it.kind).put("type", it.type)) }
+}
+
+internal fun jsonToDefenses(array: JSONArray?): List<DamageDefense> =
+    array.objects().map { DamageDefense(it.optString("kind", DefenseKind.RESISTANCE), it.optString("type")) }
+
 private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("id", id).put("name", name).put("systemId", systemId)
     .put("concept", concept).put("origin", origin).put("level", level).put("imageUri", imageUri)
@@ -296,7 +446,7 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
         resources.forEach { (k, v) -> o.put(k, JSONObject().put("current", v.current).put("max", v.max)) }
     })
     .put("skills", JSONArray().also { a ->
-        skills.forEach { a.put(JSONObject().put("name", it.name).put("attr", it.attributeKey).put("prof", it.proficient).put("extra", it.extra)) }
+        skills.forEach { a.put(JSONObject().put("name", it.name).put("attr", it.attributeKey).put("prof", it.proficient).put("extra", it.extra).put("system", it.systemId)) }
     })
     .put("attacks", JSONArray().also { a ->
         attacks.forEach { a.put(JSONObject().put("name", it.name).put("bonus", it.bonus).put("damage", it.damage)) }
@@ -306,6 +456,15 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
         inventory.forEach { a.put(JSONObject().put("itemId", it.itemId).put("qty", it.quantity).put("equipped", it.equipped)) }
     })
     .put("traitIds", JSONArray(traitIds))
+    .put("defenses", defensesToJson(defenses)).put("conditionImmunities", conditionImmunities)
+    .put("saveProficiencies", JSONArray(saveProficiencies)).put("experience", experience).put("speed", speed)
+    .put("tempHp", tempHp).put("inspiration", inspiration)
+    .put("deathSuccesses", deathSuccesses).put("deathFailures", deathFailures)
+    .put("conditions", JSONArray(conditions))
+    .put("languages", languages).put("proficiencies", proficiencies).put("senses", senses)
+    .put("alignment", alignment).put("background", background).put("appearance", appearance)
+    .put("personality", personality).put("ideals", ideals).put("bonds", bonds).put("flaws", flaws)
+    .put("money", money)
     .put("equipment", equipment).put("notes", notes)
 
 private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
@@ -322,7 +481,7 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
         }
     },
     skills = o.optJSONArray("skills").objects().map {
-        SkillEntry(it.optString("name"), it.optString("attr"), it.optBoolean("prof"), it.optInt("extra"))
+        SkillEntry(it.optString("name"), it.optString("attr"), it.optBoolean("prof"), it.optInt("extra"), it.optString("system"))
     },
     attacks = o.optJSONArray("attacks").objects().map {
         AttackEntry(it.optString("name"), it.optString("bonus"), it.optString("damage"))
@@ -332,6 +491,17 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
         InventoryEntry(it.optString("itemId"), it.optInt("qty", 1), it.optBoolean("equipped"))
     },
     traitIds = o.optJSONArray("traitIds").strings(),
+    defenses = jsonToDefenses(o.optJSONArray("defenses")),
+    conditionImmunities = o.optString("conditionImmunities"),
+    saveProficiencies = o.optJSONArray("saveProficiencies").strings(),
+    experience = o.optInt("experience"), speed = o.optString("speed"),
+    tempHp = o.optInt("tempHp"), inspiration = o.optBoolean("inspiration"),
+    deathSuccesses = o.optInt("deathSuccesses"), deathFailures = o.optInt("deathFailures"),
+    conditions = o.optJSONArray("conditions").strings(),
+    languages = o.optString("languages"), proficiencies = o.optString("proficiencies"), senses = o.optString("senses"),
+    alignment = o.optString("alignment"), background = o.optString("background"), appearance = o.optString("appearance"),
+    personality = o.optString("personality"), ideals = o.optString("ideals"), bonds = o.optString("bonds"),
+    flaws = o.optString("flaws"), money = o.optString("money"),
     equipment = o.optString("equipment"), notes = o.optString("notes")
 )
 
@@ -341,6 +511,8 @@ private fun MonsterSheet.toJson(): JSONObject = JSONObject()
     .put("armorClass", armorClass).put("hp", hp).put("hpFormula", hpFormula).put("speed", speed)
     .put("attributes", intMapToJson(attributes))
     .put("resistances", resistances).put("senses", senses).put("languages", languages)
+    .put("defenses", defensesToJson(defenses)).put("conditionImmunities", conditionImmunities)
+    .put("alignment", alignment).put("savingThrows", savingThrows).put("skillsText", skillsText).put("loot", loot)
     .put("entries", JSONArray().also { a ->
         entries.forEach { a.put(JSONObject().put("kind", it.kind).put("name", it.name).put("text", it.text)) }
     })
@@ -353,6 +525,10 @@ private fun decodeMonster(o: JSONObject): MonsterSheet = MonsterSheet(
     hpFormula = o.optString("hpFormula"), speed = o.optString("speed"),
     attributes = jsonToIntMap(o.optJSONObject("attributes")),
     resistances = o.optString("resistances"), senses = o.optString("senses"), languages = o.optString("languages"),
+    defenses = jsonToDefenses(o.optJSONArray("defenses")),
+    conditionImmunities = o.optString("conditionImmunities"),
+    alignment = o.optString("alignment"), savingThrows = o.optString("savingThrows"),
+    skillsText = o.optString("skillsText"), loot = o.optString("loot"),
     entries = o.optJSONArray("entries").objects().map {
         NamedEntry(it.optString("kind", EntryKind.TRAIT), it.optString("name"), it.optString("text"))
     },
@@ -364,6 +540,7 @@ private fun SpellEntry.toJson(): JSONObject = JSONObject()
     .put("castingTime", castingTime).put("range", range).put("components", components).put("duration", duration)
     .put("concentration", concentration).put("ritual", ritual)
     .put("damage", damage).put("cost", cost).put("description", description).put("higherLevels", higherLevels)
+    .put("systemId", systemId)
 
 private fun decodeSpell(o: JSONObject): SpellEntry = SpellEntry(
     id = o.getString("id"), name = o.optString("name"), level = o.optInt("level"),
@@ -372,7 +549,8 @@ private fun decodeSpell(o: JSONObject): SpellEntry = SpellEntry(
     components = o.optString("components"), duration = o.optString("duration"),
     concentration = o.optBoolean("concentration"), ritual = o.optBoolean("ritual"),
     damage = o.optString("damage"), cost = o.optString("cost"),
-    description = o.optString("description"), higherLevels = o.optString("higherLevels")
+    description = o.optString("description"), higherLevels = o.optString("higherLevels"),
+    systemId = o.optString("systemId")
 )
 
 private fun TraitEntry.toJson(): JSONObject = JSONObject()
@@ -389,13 +567,15 @@ private fun decodeTrait(o: JSONObject): TraitEntry = TraitEntry(
 private fun ItemEntry.toJson(): JSONObject = JSONObject()
     .put("id", id).put("name", name).put("type", type).put("rarity", rarity).put("weight", weight)
     .put("value", value).put("bonus", bonus).put("damage", damage).put("properties", properties)
-    .put("attunement", attunement).put("description", description)
+    .put("attunement", attunement).put("description", description).put("armorClass", armorClass)
+    .put("systemId", systemId)
 
 private fun decodeItem(o: JSONObject): ItemEntry = ItemEntry(
     id = o.getString("id"), name = o.optString("name"), type = o.optString("type"),
     rarity = o.optString("rarity"), weight = o.optDouble("weight", 0.0), value = o.optString("value"),
     bonus = o.optString("bonus"), damage = o.optString("damage"), properties = o.optString("properties"),
-    attunement = o.optBoolean("attunement"), description = o.optString("description")
+    attunement = o.optBoolean("attunement"), description = o.optString("description"),
+    armorClass = o.optInt("armorClass", 0), systemId = o.optString("systemId")
 )
 
 // ---------------------------------------------------------------------------------------------
@@ -438,12 +618,15 @@ object SheetStore {
      */
     fun rebindCharacter(prefs: SharedPreferences, sheet: CharacterSheet, systemId: String): CharacterSheet {
         val p = SystemProfiles.resolve(prefs, systemId)
-        val knownSkills = sheet.skills.map { it.name }.toSet()
+        // As perícias de cada sistema ficam guardadas na ficha: as do sistema antigo somem da vista (e voltam
+        // se a ficha for vinculada de novo a ele); as do novo sistema entram.
+        val tagged = sheet.skills.map { if (it.systemId.isBlank()) it.copy(systemId = sheet.systemId) else it }
+        val knownSkills = tagged.filter { it.systemId == p.id }.map { it.name }.toSet()
         return sheet.copy(
             systemId = p.id,
             attributes = p.attributes.associate { it.key to it.default } + sheet.attributes,
             resources = p.resources.associate { it.key to ResourceValue(it.defaultMax, it.defaultMax) } + sheet.resources,
-            skills = sheet.skills + p.skillTemplates.filter { it.name !in knownSkills }.map { SkillEntry(it.name, it.attributeKey) }
+            skills = tagged + p.skillTemplates.filter { it.name !in knownSkills }.map { SkillEntry(it.name, it.attributeKey, systemId = p.id) }
         )
     }
 
@@ -455,19 +638,25 @@ object SheetStore {
             id = newId(), name = "Novo personagem", systemId = p.id,
             attributes = p.attributes.associate { it.key to it.default },
             resources = p.resources.associate { it.key to ResourceValue(it.defaultMax, it.defaultMax) },
-            skills = p.skillTemplates.map { SkillEntry(it.name, it.attributeKey) }
+            skills = p.skillTemplates.map { SkillEntry(it.name, it.attributeKey, systemId = p.id) }
         )
     }
 
-    fun newMonster(prefs: SharedPreferences): MonsterSheet {
-        val p = SystemProfiles.resolve(prefs, activeSystemId(prefs))
+    fun newMonster(prefs: SharedPreferences, systemId: String? = null): MonsterSheet {
+        val p = SystemProfiles.resolve(prefs, systemId ?: activeSystemId(prefs))
         return MonsterSheet(id = newId(), name = "Nova criatura", systemId = p.id,
             attributes = p.attributes.associate { it.key to it.default })
     }
 
-    fun newSpell(): SpellEntry = SpellEntry(id = newId(), name = "Nova magia", level = 1)
+    /** Vincula a criatura a outro sistema sem apagar valores (mesma regra de [rebindCharacter]). */
+    fun rebindMonster(prefs: SharedPreferences, monster: MonsterSheet, systemId: String): MonsterSheet {
+        val p = SystemProfiles.resolve(prefs, systemId)
+        return monster.copy(systemId = p.id, attributes = p.attributes.associate { it.key to it.default } + monster.attributes)
+    }
 
-    fun newItem(): ItemEntry = ItemEntry(id = newId(), name = "Novo item", type = "Outro")
+    fun newSpell(systemId: String = ""): SpellEntry = SpellEntry(id = newId(), name = "Nova magia", level = 1, systemId = systemId)
+
+    fun newItem(systemId: String = ""): ItemEntry = ItemEntry(id = newId(), name = "Novo item", type = "Outro", systemId = systemId)
 
     fun newTrait(kind: String = TraitKind.ADVANTAGE): TraitEntry = TraitEntry(
         id = newId(), kind = kind,
@@ -578,7 +767,7 @@ object SheetStore {
                     "intelligence" to 12, "wisdom" to 10, "charisma" to 13),
                 resources = mapOf("hp" to ResourceValue(20, 20), "hit_dice" to ResourceValue(2, 2)),
                 skills = p.skillTemplates.map {
-                    SkillEntry(it.name, it.attributeKey, proficient = it.name == "Arcanismo" || it.name == "Percepção")
+                    SkillEntry(it.name, it.attributeKey, proficient = it.name == "Arcanismo" || it.name == "Percepção", systemId = "dnd5e")
                 },
                 attacks = listOf(AttackEntry("Adaga", "+4", "1d4+2 perfurante")),
                 inventory = listOf(InventoryEntry("demo-adaga", 1, true), InventoryEntry("demo-pocao", 2, false)),

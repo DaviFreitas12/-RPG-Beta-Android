@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.data.SheetAttr
 import com.example.rpgsombrio.data.SystemOption
 import com.example.rpgsombrio.data.SystemProfile
 import kotlinx.coroutines.Dispatchers
@@ -77,8 +80,8 @@ internal fun <T> List<T>.without(index: Int): List<T> = filterIndexed { i, _ -> 
 @Composable
 internal fun ScreenHeader(kicker: String, title: String, subtitle: String = "") {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(kicker.uppercase(), color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Text(title, color = Parchment, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text(kicker.uppercase(), color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text(title, color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 12.sp)
     }
 }
@@ -97,7 +100,7 @@ internal fun LazyListScope.listHeader(
         )
     }
     item {
-        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blood)) {
+        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Brand)) {
             Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text(addLabel)
         }
     }
@@ -106,8 +109,8 @@ internal fun LazyListScope.listHeader(
 @Composable
 internal fun EditorTopBar(title: String, onBack: () -> Unit, onDelete: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Gold) }
-        Text(title, color = Parchment, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Accent) }
+        Text(title, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, "Excluir", tint = Muted) }
     }
 }
@@ -124,8 +127,8 @@ internal fun CollapsibleSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Panel),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = .28f))
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, Hairline)
     ) {
         Column {
             Row(
@@ -133,7 +136,7 @@ internal fun CollapsibleSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text(title, color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     if (!expanded && summary.isNotBlank()) Text(summary, color = Muted, fontSize = 12.sp, maxLines = 1)
                 }
                 Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -182,9 +185,9 @@ internal fun NumberField(label: String, value: Int, onChange: (Int) -> Unit, mod
 @Composable
 internal fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Parchment, modifier = Modifier.weight(1f))
+        Text(label, color = Ink, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Gold, checkedTrackColor = Blood))
+            colors = SwitchDefaults.colors(checkedThumbColor = Accent, checkedTrackColor = Brand))
     }
 }
 
@@ -237,8 +240,8 @@ internal fun SystemPickerDialog(
     @Composable
     fun PickRow(name: String, note: String, selected: Boolean, onClick: () -> Unit) {
         Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 4.dp)) {
-            Text(name, color = if (selected) Gold else Parchment, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-            if (note.isNotBlank()) Text(note, color = Muted, fontSize = 11.sp)
+            Text(name, color = if (selected) Accent else Ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+            if (note.isNotBlank()) Text(note, color = Muted, fontSize = 12.sp)
         }
     }
     AlertDialog(
@@ -263,7 +266,11 @@ internal fun SystemPickerDialog(
 
 /** Grade de atributos (3 por linha) guiada pelo perfil do sistema. */
 @Composable
-internal fun AttributeGrid(profile: SystemProfile, values: Map<String, Int>, onChange: (String, Int) -> Unit) {
+internal fun AttributeGrid(
+    profile: SystemProfile, values: Map<String, Int>,
+    onRoll: ((SheetAttr) -> Unit)? = null,
+    onChange: (String, Int) -> Unit
+) {
     if (profile.attributes.isEmpty()) {
         EmptyHint("Este sistema ainda não tem atributos. Defina-os na aba Sistemas.")
         return
@@ -275,7 +282,12 @@ internal fun AttributeGrid(profile: SystemProfile, values: Map<String, Int>, onC
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     NumberField(attr.abbr, value, { onChange(attr.key, attr.clamp(it)) }, Modifier.fillMaxWidth())
                     if (attr.hasModifier) {
-                        Text(signed(attr.modifierOf(value)), color = Gold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(signed(attr.modifierOf(value)), color = Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                    if (onRoll != null) {
+                        IconButton(onClick = { onRoll(attr) }, modifier = Modifier.size(34.dp)) {
+                            Icon(Icons.Default.Casino, "Rolar ${attr.abbr}", tint = Accent, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }
@@ -306,7 +318,7 @@ internal fun PortraitField(imageUri: String, name: String, onChange: (String) ->
         if (imageUri.isNotBlank()) {
             Portrait(imageUri, name, 84.dp)
         } else {
-            Box(Modifier.size(84.dp).background(Panel2, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(84.dp).background(Panel2, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Muted)
             }
         }
@@ -317,7 +329,7 @@ internal fun PortraitField(imageUri: String, name: String, onChange: (String) ->
             if (imageUri.isNotBlank()) {
                 TextButton(onClick = { deletePortraitFile(context, imageUri); onChange("") }) { Text("Remover") }
             }
-            if (error) Text("Não foi possível ler essa imagem.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+            if (error) Text("Não foi possível ler essa imagem.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
     }
 }
@@ -345,4 +357,97 @@ internal fun DecimalField(label: String, value: Double, onChange: (Double) -> Un
         modifier = modifier, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
     )
+}
+
+/** Guarda a rolagem mais recente no topo e limita o histórico a 20 linhas. */
+internal fun MutableList<RollLine>.push(line: RollLine) {
+    add(0, line)
+    while (size > 20) removeAt(lastIndex)
+}
+
+/** Barra fixa no rodapé das telas com o resultado das últimas rolagens (a mais nova em destaque). */
+@Composable
+internal fun RollLogBar(log: List<RollLine>, onClear: () -> Unit) {
+    if (log.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Panel2),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Accent.copy(alpha = .5f))
+    ) {
+        Row(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f).padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                log.take(4).forEachIndexed { index, line ->
+                    val color = when {
+                        index > 0 -> Muted
+                        line.good == true -> Accent
+                        line.good == false -> MaterialTheme.colorScheme.error
+                        else -> Ink
+                    }
+                    Text(
+                        line.text, color = color,
+                        fontSize = if (index == 0) 13.sp else 11.sp,
+                        fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+            IconButton(onClick = onClear) { Icon(Icons.Default.Close, "Limpar rolagens", tint = Muted) }
+        }
+    }
+}
+
+/** Valor do filtro de sistema que mostra tudo. */
+internal const val ANY_SYSTEM = "*"
+
+/** Registro sem sistema vale para todos; com filtro [ANY_SYSTEM] tudo aparece. */
+internal fun fitsFilter(entrySystemId: String, filterId: String): Boolean =
+    filterId == ANY_SYSTEM || entrySystemId.isBlank() || entrySystemId == filterId
+
+/** Filtro de sistema das bibliotecas (Itens, Grimório, Traços). [selectedId] = id do sistema ou [ANY_SYSTEM]. */
+@Composable
+internal fun SystemFilterRow(options: List<SystemOption>, selectedId: String, onSelect: (String) -> Unit) {
+    val labels = listOf("Todos os sistemas") + options.map { it.name }
+    val selected = options.firstOrNull { it.id == selectedId }?.name ?: "Todos os sistemas"
+    ChipFilterRow(labels, selected) { label -> onSelect(options.firstOrNull { it.name == label }?.id ?: ANY_SYSTEM) }
+}
+
+/** Mantém o filtro válido mesmo que o sistema escolhido tenha sido excluído. */
+internal fun validSystemFilter(options: List<SystemOption>, filterId: String): String =
+    if (filterId == ANY_SYSTEM || options.any { it.id == filterId }) filterId else ANY_SYSTEM
+
+/** Linha "Sistema: X [Alterar]" de um registro da biblioteca, com seletor (inclui "Todos os sistemas"). */
+@Composable
+internal fun SystemBinding(
+    systemName: String, hint: String, options: List<SystemOption>,
+    currentId: String, campaignId: String?, onPick: (String) -> Unit
+) {
+    var picking by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Sistema", color = Muted, fontSize = 12.sp)
+            Text(systemName, color = Ink, fontWeight = FontWeight.SemiBold)
+        }
+        TextButton(onClick = { picking = true }) { Text("Alterar") }
+    }
+    Text(hint, color = Muted, fontSize = 12.sp)
+    if (picking) {
+        SystemPickerDialog(
+            title = "Sistema", options = options, currentId = currentId, campaignId = campaignId, allowAll = true,
+            onPick = { picking = false; onPick(it) }, onDismiss = { picking = false }
+        )
+    }
+}
+
+/** Botão que copia o registro para outro sistema, onde seus valores podem ser ajustados à parte. */
+@Composable
+internal fun DuplicateToSystem(options: List<SystemOption>, currentId: String, campaignId: String?, onDuplicate: (String) -> Unit) {
+    var picking by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) { Text("Duplicar para outro sistema") }
+    Text("Cria uma cópia ligada ao sistema escolhido, para ajustar os valores nele.", color = Muted, fontSize = 12.sp)
+    if (picking) {
+        SystemPickerDialog(
+            title = "Duplicar para…", options = options.filter { it.id != currentId }, currentId = "-", campaignId = campaignId,
+            onPick = { picking = false; onDuplicate(it) }, onDismiss = { picking = false }
+        )
+    }
 }
