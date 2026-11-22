@@ -1,0 +1,46 @@
+package com.example.rpgsombrio.ui.library
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.ui.components.QuickCard
+import com.example.rpgsombrio.ui.theme.Accent
+import com.example.rpgsombrio.ui.theme.Hairline
+import com.example.rpgsombrio.ui.theme.Ink
+import com.example.rpgsombrio.ui.theme.Muted
+import com.example.rpgsombrio.ui.theme.Panel2
+
+@Composable
+internal fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String) -> Unit) {
+    LazyColumn(
+        modifier.fillMaxSize().padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(top = 22.dp, bottom = 30.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Text("ARQUIVOS DA MESA", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("Biblioteca", color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Bold)
+            Text("Conteúdos reutilizáveis da campanha, organizados em um só lugar.", color = Muted, fontSize = 12.sp)
+        }
+        item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças") { onNavigate("Bestiário") } }
+        item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos") { onNavigate("Grimório") } }
+        item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros") { onNavigate("Itens") } }
+        item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema") { onNavigate("Traços") } }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Hairline)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("LIGADO AO MOTOR", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Criaturas rolam ações e entram no combate com PV e iniciativa próprios; magias rolam o efeito e debitam o custo na ficha; itens equipados com dano viram ataques. Próximo passo: itens equipados alterarem atributos e CA.", color = Ink, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}

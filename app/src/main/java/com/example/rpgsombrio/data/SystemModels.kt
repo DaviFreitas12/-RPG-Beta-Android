@@ -102,5 +102,4 @@ object RuleSystemCatalog {
         )
     )
 
-
 }

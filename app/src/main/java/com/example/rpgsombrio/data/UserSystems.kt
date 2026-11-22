@@ -1,9 +1,9 @@
 package com.example.rpgsombrio.data
 
 import android.content.SharedPreferences
+import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.UUID
 
 // ---------------------------------------------------------------------------------------------
 // Sistemas criados pelo usuário. Cada sistema é uma definição completa (atributos, recursos,
