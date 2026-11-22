@@ -1,4 +1,4 @@
-# RPG Sombrio — Beta 0.9.2
+# RPG Sombrio — Beta 0.9.3
 
 Aplicativo Android de RPG multissistemas (Kotlin + Jetpack Compose), com identidade visual medieval sombria.
 
@@ -10,7 +10,7 @@ Aplicativo Android de RPG multissistemas (Kotlin + Jetpack Compose), com identid
 - **Vínculo**: a campanha tem um sistema; cada ficha nasce nele, mas pode ser vinculada a qualquer outro (nada é apagado ao trocar).
 - **Vantagens e desvantagens**: biblioteca de traços com custo em pontos, por sistema. A ficha mostra pontos gastos, devolvidos e livres (orçamento definido no sistema).
 - **Ficha ↔ Motor (0.9.1)**: atributos, perícias, recursos e magias viram variáveis e botões de rolar; criaturas rolam ações e entram no combate; magias debitam custo; PV sincronizados com a ficha; sistemas de reserva de dados contam sucessos.
-- **Aparência (0.9.2)**: criador de visual com avatar desenhado em camadas (pele, rosto, cabelo, olhos, barba, detalhe, roupa) e descrição estruturada; o avatar aparece na lista de personagens e na arena quando não há retrato da galeria.
+- **Aparência (0.9.3)**: criador de personagem em pixel art, corpo inteiro, desenhado por código (sem imagens): raça (humano, elfo, anão, orc, tiefling, halfling), corpo, pele, rosto, cabelo, olhos, boca, barba, detalhes, roupa, capa, elmo/chapéu e arma, com luz, sombra e contorno automáticos. Mais campos de descrição. O avatar aparece na lista de personagens e na arena quando não há retrato da galeria.
 - **Motor**: rolagens (d4–d100), fórmulas com dados e variáveis (`1d20 + DES + PROF`), testes contra CD, iniciativa com turnos e resolução de ataque (20 natural acerta e dobra os dados do dano; 1 natural erra).
 - Persistência em SharedPreferences/JSON, funcionando offline.
 
@@ -30,7 +30,7 @@ Veja `docs/CHANGELOG_0.9.1.md` para o que mudou nesta versão e `docs/ANALISE_E_
 O workflow `.github/workflows/android.yml` roda os testes e gera o APK debug como artefato a cada push.
 
 ## Identidade
-- Nome exibido: RPG · Application ID: `com.example.rpgsombrio` · Versão 0.9.2 (código 12) · minSdk 26
+- Nome exibido: RPG · Application ID: `com.example.rpgsombrio` · Versão 0.9.3 (código 13) · minSdk 26
 
 ## Firebase
 O `google-services.json` foi removido do projeto (não estava em uso e apontava para um package diferente). Ao ativar o Firebase, baixe um novo arquivo para o package `com.example.rpgsombrio`, coloque-o em `app/` e aplique o plugin `com.google.gms.google-services`.

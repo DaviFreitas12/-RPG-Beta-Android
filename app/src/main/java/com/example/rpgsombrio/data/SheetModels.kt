@@ -177,18 +177,25 @@ fun defensesSummary(defenses: List<DamageDefense>): String {
     ).joinToString(" • ")
 }
 
-/** Aparência do personagem: avatar em camadas (índices das opções) + descrição estruturada. */
+/** Aparência do personagem: avatar em pixel art (índices das opções) + descrição estruturada. */
 data class CharacterLook(
     val configured: Boolean = false,
+    val race: Int = 0,
     val skin: Int = 1,
     val face: Int = 0,
+    val body: Int = 0,
     val hairStyle: Int = 1,
     val hairColor: Int = 1,
     val eyeColor: Int = 1,
+    val eyeStyle: Int = 0,
+    val mouth: Int = 0,
     val beard: Int = 0,
     val accessory: Int = 0,
     val outfit: Int = 0,
-    val outfitColor: Int = 0,
+    val outfitColor: Int = 1,
+    val cape: Int = 0,
+    val headgear: Int = 0,
+    val weapon: Int = 0,
     val age: String = "",
     val height: String = "",
     val build: String = "",
@@ -457,9 +464,11 @@ internal fun jsonToDefenses(array: JSONArray?): List<DamageDefense> =
     array.objects().map { DamageDefense(it.optString("kind", DefenseKind.RESISTANCE), it.optString("type")) }
 
 private fun CharacterLook.toJson(): JSONObject = JSONObject()
-    .put("configured", configured).put("skin", skin).put("face", face)
+    .put("configured", configured).put("race", race).put("skin", skin).put("face", face).put("body", body)
     .put("hairStyle", hairStyle).put("hairColor", hairColor).put("eyeColor", eyeColor)
-    .put("beard", beard).put("accessory", accessory).put("outfit", outfit).put("outfitColor", outfitColor)
+    .put("eyeStyle", eyeStyle).put("mouth", mouth).put("beard", beard).put("accessory", accessory)
+    .put("outfit", outfit).put("outfitColor", outfitColor).put("cape", cape)
+    .put("headgear", headgear).put("weapon", weapon)
     .put("age", age).put("height", height).put("build", build).put("marks", marks)
 
 private fun decodeLook(o: JSONObject?): CharacterLook {
@@ -467,11 +476,14 @@ private fun decodeLook(o: JSONObject?): CharacterLook {
     val d = CharacterLook()
     return CharacterLook(
         configured = o.optBoolean("configured", false),
-        skin = o.optInt("skin", d.skin), face = o.optInt("face", d.face),
+        race = o.optInt("race", d.race), skin = o.optInt("skin", d.skin),
+        face = o.optInt("face", d.face), body = o.optInt("body", d.body),
         hairStyle = o.optInt("hairStyle", d.hairStyle), hairColor = o.optInt("hairColor", d.hairColor),
-        eyeColor = o.optInt("eyeColor", d.eyeColor), beard = o.optInt("beard", d.beard),
+        eyeColor = o.optInt("eyeColor", d.eyeColor), eyeStyle = o.optInt("eyeStyle", d.eyeStyle),
+        mouth = o.optInt("mouth", d.mouth), beard = o.optInt("beard", d.beard),
         accessory = o.optInt("accessory", d.accessory), outfit = o.optInt("outfit", d.outfit),
-        outfitColor = o.optInt("outfitColor", d.outfitColor),
+        outfitColor = o.optInt("outfitColor", d.outfitColor), cape = o.optInt("cape", d.cape),
+        headgear = o.optInt("headgear", d.headgear), weapon = o.optInt("weapon", d.weapon),
         age = o.optString("age"), height = o.optString("height"),
         build = o.optString("build"), marks = o.optString("marks")
     )
