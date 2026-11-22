@@ -177,6 +177,24 @@ fun defensesSummary(defenses: List<DamageDefense>): String {
     ).joinToString(" • ")
 }
 
+/** Aparência do personagem: avatar em camadas (índices das opções) + descrição estruturada. */
+data class CharacterLook(
+    val configured: Boolean = false,
+    val skin: Int = 1,
+    val face: Int = 0,
+    val hairStyle: Int = 1,
+    val hairColor: Int = 1,
+    val eyeColor: Int = 1,
+    val beard: Int = 0,
+    val accessory: Int = 0,
+    val outfit: Int = 0,
+    val outfitColor: Int = 0,
+    val age: String = "",
+    val height: String = "",
+    val build: String = "",
+    val marks: String = ""
+)
+
 data class CharacterSheet(
     val id: String,
     val name: String = "",
@@ -211,6 +229,7 @@ data class CharacterSheet(
     val alignment: String = "",
     val background: String = "",
     val appearance: String = "",
+    val look: CharacterLook = CharacterLook(),
     val personality: String = "",
     val ideals: String = "",
     val bonds: String = "",
@@ -437,6 +456,27 @@ internal fun defensesToJson(list: List<DamageDefense>): JSONArray = JSONArray().
 internal fun jsonToDefenses(array: JSONArray?): List<DamageDefense> =
     array.objects().map { DamageDefense(it.optString("kind", DefenseKind.RESISTANCE), it.optString("type")) }
 
+private fun CharacterLook.toJson(): JSONObject = JSONObject()
+    .put("configured", configured).put("skin", skin).put("face", face)
+    .put("hairStyle", hairStyle).put("hairColor", hairColor).put("eyeColor", eyeColor)
+    .put("beard", beard).put("accessory", accessory).put("outfit", outfit).put("outfitColor", outfitColor)
+    .put("age", age).put("height", height).put("build", build).put("marks", marks)
+
+private fun decodeLook(o: JSONObject?): CharacterLook {
+    if (o == null) return CharacterLook()
+    val d = CharacterLook()
+    return CharacterLook(
+        configured = o.optBoolean("configured", false),
+        skin = o.optInt("skin", d.skin), face = o.optInt("face", d.face),
+        hairStyle = o.optInt("hairStyle", d.hairStyle), hairColor = o.optInt("hairColor", d.hairColor),
+        eyeColor = o.optInt("eyeColor", d.eyeColor), beard = o.optInt("beard", d.beard),
+        accessory = o.optInt("accessory", d.accessory), outfit = o.optInt("outfit", d.outfit),
+        outfitColor = o.optInt("outfitColor", d.outfitColor),
+        age = o.optString("age"), height = o.optString("height"),
+        build = o.optString("build"), marks = o.optString("marks")
+    )
+}
+
 private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("id", id).put("name", name).put("systemId", systemId)
     .put("concept", concept).put("origin", origin).put("level", level).put("imageUri", imageUri)
@@ -463,6 +503,7 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("conditions", JSONArray(conditions))
     .put("languages", languages).put("proficiencies", proficiencies).put("senses", senses)
     .put("alignment", alignment).put("background", background).put("appearance", appearance)
+    .put("look", look.toJson())
     .put("personality", personality).put("ideals", ideals).put("bonds", bonds).put("flaws", flaws)
     .put("money", money)
     .put("equipment", equipment).put("notes", notes)
@@ -500,6 +541,7 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     conditions = o.optJSONArray("conditions").strings(),
     languages = o.optString("languages"), proficiencies = o.optString("proficiencies"), senses = o.optString("senses"),
     alignment = o.optString("alignment"), background = o.optString("background"), appearance = o.optString("appearance"),
+    look = decodeLook(o.optJSONObject("look")),
     personality = o.optString("personality"), ideals = o.optString("ideals"), bonds = o.optString("bonds"),
     flaws = o.optString("flaws"), money = o.optString("money"),
     equipment = o.optString("equipment"), notes = o.optString("notes")

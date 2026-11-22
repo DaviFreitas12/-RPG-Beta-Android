@@ -151,6 +151,7 @@ private fun CharacterCard(sheet: CharacterSheet, prefs: SharedPreferences, onCli
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (sheet.imageUri.isNotBlank()) Portrait(sheet.imageUri, sheet.name)
+            else if (sheet.look.configured) AvatarView(sheet.look, 64.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(sheet.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 val subtitle = listOf(sheet.concept, sheet.origin, if (profile.usesLevels) "Nível ${sheet.level}" else "")
@@ -194,6 +195,7 @@ private fun CharacterEditor(
         ) {
             item { EditorTopBar("Ficha • ${profile.name}", onBack, onDelete) }
             item { IdentitySection(sheet, profile, prefs, onChange) }
+            item { AppearanceSection(sheet, onChange) }
             item { RollPanel(sheet, profile, prefs, engine, variables, targetDefense, { targetDefense = it }, log) }
             item { ResourcesSection(sheet, profile, onChange) }
             item {

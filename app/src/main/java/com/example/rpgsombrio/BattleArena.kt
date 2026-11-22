@@ -122,7 +122,8 @@ internal data class BattleEvent(
 private enum class StagePhase { IDLE, ROLLING, RESULT }
 
 private fun portraitOf(fighter: Combatant, characters: List<CharacterSheet>, monsters: List<MonsterSheet>): String = when (fighter.sheetKind) {
-    CombatantSource.CHARACTER -> characters.firstOrNull { it.id == fighter.sheetId }?.imageUri
+    CombatantSource.CHARACTER -> characters.firstOrNull { it.id == fighter.sheetId }
+        ?.let { c -> c.imageUri.ifBlank { if (c.look.configured) c.look.toAvatarKey() else "" } }
     CombatantSource.MONSTER -> monsters.firstOrNull { it.id == fighter.sheetId }?.imageUri
     else -> null
 } ?: ""
@@ -169,7 +170,9 @@ private fun FighterAvatar(
                 fontSize = (size.value * 0.42f).sp, fontWeight = FontWeight.Bold
             )
         }
-        if (portraitUri.isNotBlank()) Portrait(portraitUri, name, size)
+        val avatarLook = parseAvatarKey(portraitUri)
+        if (avatarLook != null) AvatarView(avatarLook, size)
+        else if (portraitUri.isNotBlank()) Portrait(portraitUri, name, size)
         if (defeated) {
             Box(Modifier.size(size).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .62f)), contentAlignment = Alignment.Center) {
                 Text("💀", fontSize = (size.value * 0.4f).sp)
