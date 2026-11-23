@@ -103,7 +103,7 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     val tx0 = cx - tw / 2; val tx1 = cx + tw / 2
     val pants = rgb(62, 58, 76); val bootc = rgb(72, 50, 34)
     val o = L.outfit
-    val heavy = o in setOf(1, 5, 6, 10, 11, 12, 13, 14)
+    val heavy = o in setOf(1, 5, 6, 10, 11, 12, 13, 14, 20, 21, 24)
     val hs = L.hairStyle
 
     // --- camadas de trás: cauda, capa, cabelo comprido, capuz
@@ -151,6 +151,36 @@ internal fun buildSprite(L: CharacterLook): IntArray {
         g.ell((cx - 4).toFloat(), (y0 + 3).toFloat(), 2.5f, 3f, hair)
         g.ell((cx + 4).toFloat(), (y0 + 3).toFloat(), 2.5f, 3f, hair)
     }
+    if (hs == 16) { // raspado lateral com volume no topo
+        g.rect(x0 - 1, y0 + 1, x0 + 1, ty + 3, hairD)
+        g.rect(x1 - 1, y0 + 1, x1 + 1, ty + 3, hairD)
+        g.rect(cx - 3, y0 - 2, cx + 3, y0 + 2, hair)
+    }
+    if (hs == 17) { // trança lateral longa
+        val braid = g.newId()
+        for (yy in y0 + 3 until ty + 9) {
+            val xx = if ((yy / 2) % 2 == 0) x1 + 1 else x1 + 2
+            g.put(xx, yy, if (yy % 3 == 0) hairD else hair, braid)
+        }
+    }
+    if (hs == 18) { // topete alto penteado para trás
+        g.rect(cx - 2, y0 - 3, cx + 3, y0, hair)
+        g.rect(cx - 1, y0 - 4, cx + 2, y0 - 2, hairD)
+    }
+    if (hs == 19) { // dois coques laterais
+        g.ell((cx - 4).toFloat(), (y0 - 1).toFloat(), 2.3f, 2.5f, hair)
+        g.ell((cx + 4).toFloat(), (y0 - 1).toFloat(), 2.3f, 2.5f, hair)
+    }
+    if (hs == 23) { // mullet: nuca alongada e laterais curtas
+        g.rect(x0 - 1, y0 + 3, x0 + 1, ty + 11, hair)
+        g.rect(x1 - 1, y0 + 3, x1 + 1, ty + 11, hair)
+        for (yy in ty + 5 until minOf(SPRITE_H, ty + 12)) g.put(cx + ((yy / 2) % 2), yy, if (yy % 3 == 0) hairD else hair)
+    }
+    if (hs == 29) { // cabelo longo preso atrás
+        g.rect(x0 - 1, y0 + 2, x0 + 1, ty + 8, hair)
+        g.rect(x1 - 1, y0 + 2, x1 + 1, ty + 8, hair)
+        g.rect(cx - 1, y0 + 1, cx + 1, ty + 13, hairD)
+    }
     if (L.headgear == 1) g.ell(cx.toFloat(), (y0 + 5).toFloat(), hw / 2f + 1.5f, 7f, darkC(cloth, .2f))
 
     // --- pernas e botas
@@ -162,7 +192,7 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     }
 
     // --- tronco, pescoço, braços e mãos
-    val body = when (o) { 1, 5, 6, 10, 11, 12, 13, 14 -> STEEL; 3, 7, 9, 18 -> LEATHER; else -> cloth }
+    val body = when (o) { 1, 5, 6, 10, 11, 12, 13, 14, 20, 21, 24 -> STEEL; 3, 7, 9, 18, 25 -> LEATHER; else -> cloth }
     val sleeve = if (heavy) STEEL else cloth
     when (o) {
         2 -> {
@@ -315,6 +345,50 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             g.rect(tx0, tb - 2, tx1, tb - 1, GOLD, DETAIL)
             g.put(cx, ty + 5, rgb(150, 35, 48), DETAIL)
         }
+        20 -> { // armadura rúnica: placas gravadas e núcleo mágico
+            g.rect(tx0 - 1, ty, tx0 + 2, ty + 4, STEEL, DETAIL)
+            g.rect(tx1 - 2, ty, tx1 + 1, ty + 4, STEEL, DETAIL)
+            g.rect(tx0, ty + 1, tx1, tb - 1, darkC(STEEL, .12f), DETAIL)
+            g.line(cx - 2, ty + 2, cx + 1, tb - 3, rgb(90, 190, 210), DETAIL)
+            g.line(cx + 2, ty + 2, cx - 1, tb - 3, rgb(90, 190, 210), DETAIL)
+            g.put(cx, ty + 5, rgb(100, 220, 230), DETAIL)
+        }
+        21 -> { // couraça de gladiador: peito reforçado e proteção assimétrica
+            g.rect(tx0, ty + 1, tx1, tb - 1, rgb(145, 65, 48), DETAIL)
+            g.rect(tx0 - 2, ty, tx0 + 2, ty + 5, STEEL, DETAIL)
+            g.rect(tx1 - 1, ty + 1, tx1 + 1, ty + 3, GOLD, DETAIL)
+            g.line(tx0 + 1, ty + 2, tx1 - 1, tb - 2, GOLD, DETAIL)
+            g.rect(tx0, tb - 2, tx1, tb - 1, STEEL, DETAIL)
+        }
+        22 -> { // manto de viajante: sobreposição, gola e bolsa lateral
+            g.rect(tx0 - 1, ty, tx0 + 1, tb + 2, darkC(cloth, .2f), DETAIL)
+            g.rect(tx1 - 1, ty + 2, tx1 + 1, tb + 2, lightC(cloth, .08f), DETAIL)
+            g.line(tx0 + 1, ty + 1, cx + 1, tb, LEATHER, DETAIL)
+            g.rect(tx1 - 1, tb - 3, tx1 + 2, tb, LEATHER, DETAIL)
+            g.put(tx1, tb - 2, GOLD, DETAIL)
+        }
+        23 -> { // vestes druídicas: folhas e amarrações naturais
+            g.rect(tx0 - 1, ty + 1, tx0 + 1, tb, rgb(65, 100, 58), DETAIL)
+            g.rect(tx1 - 1, ty + 1, tx1 + 1, tb, rgb(65, 100, 58), DETAIL)
+            g.line(cx - 2, ty + 2, cx + 1, tb - 2, rgb(130, 155, 75), DETAIL)
+            g.put(cx - 1, ty + 4, rgb(155, 175, 85), DETAIL)
+            g.put(cx + 1, ty + 7, rgb(155, 175, 85), DETAIL)
+        }
+        24 -> { // armadura de sentinela: placas largas e faixa de identificação
+            g.rect(tx0 - 2, ty, tx0 + 2, ty + 4, lightC(STEEL, .12f), DETAIL)
+            g.rect(tx1 - 2, ty, tx1 + 2, ty + 4, lightC(STEEL, .12f), DETAIL)
+            g.rect(tx0, ty + 1, tx1, tb - 1, STEEL, DETAIL)
+            g.rect(tx0, tb - 3, tx1, tb - 2, rgb(45, 85, 125), DETAIL)
+            g.rect(cx - 1, ty + 2, cx + 1, tb - 3, GOLD, DETAIL)
+        }
+        25 -> { // alquimista: avental, tiras e frascos coloridos
+            g.rect(tx0 - 1, ty + 1, tx1 + 1, tb, darkC(cloth, .12f), DETAIL)
+            g.rect(cx - 2, ty + 3, cx + 2, tb + 1, rgb(190, 185, 160), DETAIL)
+            g.line(tx0, ty + 1, tx1, tb - 2, LEATHER, DETAIL)
+            g.put(tx1, ty + 5, rgb(70, 175, 195), DETAIL)
+            g.put(tx1, ty + 7, rgb(175, 90, 65), DETAIL)
+            g.rect(cx - 1, tb - 2, cx + 1, tb - 1, GOLD, DETAIL)
+        }
     }
     if (L.cape > 0) g.rect(cx - 2, ty, cx + 2, ty + 1, GOLD, DETAIL)
 
@@ -440,6 +514,68 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             g.rect(x0, y0 - 1, x1, y0 + 2, hair, hm)
             g.rect(x0, y0 + 2, x0 + 2, y0 + 4, hair, hm)
         }
+        if (hs == 16) {
+            g.rect(cx - 3, y0 - 2, cx + 3, y0 + 1, hair, hm)
+            g.rect(cx - 2, y0 + 1, cx + 2, y0 + 3, hair, hm)
+        }
+        if (hs == 17) {
+            g.rect(cx - 3, y0 + 1, cx + 1, y0 + 3, hair, hm)
+            g.put(cx + 2, y0 + 2, hairD, hm)
+        }
+        if (hs == 18) {
+            g.rect(cx - 3, y0 - 2, cx + 3, y0 + 1, hair, hm)
+            g.put(cx + 3, y0 - 3, hair, hm)
+        }
+        if (hs == 19) {
+            g.rect(cx - 3, y0, cx + 3, y0 + 2, hair, hm)
+        }
+        when (hs) {
+            20 -> { // corte militar: topo baixo e uniforme
+                g.rect(x0 + 1, y0 - 1, x1 - 1, y0 + 1, hair, hm)
+                g.rect(x0 + 1, y0 + 1, x1 - 1, y0 + 2, hairD, hm)
+            }
+            21 -> { // pompadour alto
+                g.rect(cx - 3, y0 - 4, cx + 3, y0, hair, hm)
+                g.rect(cx - 2, y0 - 5, cx + 2, y0 - 3, hairD, hm)
+                g.rect(x0 + 1, y0, x1 - 1, y0 + 2, hair, hm)
+            }
+            22 -> { // penteado para trás
+                g.rect(cx - 3, y0 - 3, cx + 3, y0, hair, hm)
+                g.line(cx - 2, y0 - 2, x1 - 1, y0 + 1, hairD, hm)
+                g.rect(x0 + 1, y0, x1 - 1, y0 + 2, hair, hm)
+            }
+            23 -> { // franja curta do mullet
+                g.rect(x0 + 1, y0 - 1, x1 - 1, y0 + 2, hair, hm)
+                g.put(cx - 2, y0 + 2, hairD, hm); g.put(cx + 2, y0 + 2, hairD, hm)
+            }
+            24 -> { // shag em camadas
+                g.rect(x0, y0 - 2, x1, y0 + 2, hair, hm)
+                g.put(x0 + 1, y0 + 3, hairD, hm); g.put(cx, y0 + 3, hair, hm); g.put(x1 - 2, y0 + 3, hairD, hm)
+            }
+            25 -> { // cortina repartida ao meio
+                g.rect(x0, y0 - 1, cx - 1, y0 + 3, hair, hm)
+                g.rect(cx + 1, y0 - 1, x1, y0 + 3, hair, hm)
+                g.put(cx - 1, y0 + 3, hairD, hm); g.put(cx + 1, y0 + 3, hairD, hm)
+            }
+            26 -> { // franja bagunçada
+                for (xx in x0 until x1 step 2) g.put(xx, y0 - (xx % 3), hair, hm)
+                g.rect(x0 + 1, y0 + 1, x1 - 1, y0 + 3, hair, hm)
+            }
+            27 -> { // risco lateral
+                g.rect(x0, y0 - 1, x1, y0 + 2, hair, hm)
+                g.line(cx + 1, y0 - 1, cx + 1, y0 + 2, hairD, hm)
+                g.rect(cx - 3, y0 + 1, cx + 3, y0 + 3, hair, hm)
+            }
+            28 -> { // cachos curtos
+                for (xx in x0 until x1 step 2) {
+                    g.ell(xx.toFloat(), (y0 - 1 + (xx % 2)).toFloat(), 1.5f, 1.8f, hair, hm)
+                }
+            }
+            29 -> { // preso: faixa frontal discreta
+                g.rect(x0, y0 - 1, x1, y0 + 2, hair, hm)
+                g.rect(x0 + 1, y0 + 2, x1 - 1, y0 + 3, hairD, hm)
+            }
+        }
     }
     // detalhes do rosto
     when (L.accessory) {
@@ -500,6 +636,24 @@ internal fun buildSprite(L: CharacterLook): IntArray {
         5 -> { g.rect(x0 + 1, y0 - 1, x1 - 1, y0, GOLD); g.put(cx, y0 - 2, GOLD, DETAIL); g.put(cx - 1, y0 - 2, GOLD, DETAIL) }
         6 -> { g.rect(x0 - 1, y0 - 2, x1 + 1, y0 + 7, STEEL); g.rect(x0, y0 + 6, x1, y0 + 8, darkC(STEEL, .35f), DETAIL); g.rect(cx - 1, y0 + 3, cx + 1, y0 + 5, 0, 0) }
         7 -> { g.rect(x0 - 1, y0 + 1, x1 + 1, y0 + 3, rgb(120, 35, 45)); g.put(cx, y0 + 2, GOLD, DETAIL) }
+        8 -> { // máscara de couro cobrindo nariz e boca
+            g.rect(x0 + 1, y0 + 7, x1 - 1, y0 + 10, darkC(LEATHER, .18f), DETAIL)
+            g.put(cx, y0 + 8, GOLD, DETAIL)
+        }
+        9 -> { // elmo com chifres laterais
+            g.rect(x0 - 1, y0 - 2, x1 + 1, y0 + 5, STEEL, DETAIL)
+            g.rect(x0 - 3, y0 - 5, x0 - 1, y0 - 2, rgb(205, 195, 170), DETAIL)
+            g.rect(x1 + 1, y0 - 5, x1 + 3, y0 - 2, rgb(205, 195, 170), DETAIL)
+            g.rect(cx - 1, y0 + 4, cx + 1, y0 + 7, GOLD, DETAIL)
+        }
+        10 -> { // capuz aberto com borda emoldurando o rosto
+            val hood = darkC(cloth, .22f)
+            g.rect(x0 - 2, y0 - 2, x0 + 1, y0 + 8, hood, DETAIL)
+            g.rect(x1 - 1, y0 - 2, x1 + 2, y0 + 8, hood, DETAIL)
+            g.rect(x0 - 1, y0 - 2, x1 + 1, y0, hood, DETAIL)
+            g.rect(x0, y0 + 7, x0 + 1, y0 + 9, hood, DETAIL)
+            g.rect(x1 - 1, y0 + 7, x1, y0 + 9, hood, DETAIL)
+        }
     }
     // armas na mão (esquerda da imagem) e escudo
     val w = L.weapon; val hx = tx0 - 2; val hy = ty + 8

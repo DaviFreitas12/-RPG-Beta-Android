@@ -367,3 +367,15 @@ Esta fase foi escrita sem acesso a Android SDK/Gradle. A primeira compilação e
 - Incluídos detalhes de pixel art como ombreiras, rebites, placas, faixas, golas, símbolos e bordados.
 - Atualizados `versionCode` para 19 e `versionName` para 0.9.9.
 - Validação estática dos índices e alterações realizada; compilação Android não executada neste ambiente.
+
+
+## 0.9.10
+- Adicionados 4 estilos de cabelo pixel art: raspado lateral, trança lateral, topete e coques duplos.
+- Adicionadas 6 vestimentas pixel art: armadura rúnica, couraça de gladiador, manto de viajante, vestes druídicas, armadura de sentinela e traje de alquimista.
+- Adicionados 3 acessórios de cabeça: máscara de couro, elmo com chifres e capuz aberto.
+- Mantida a correção do import `signed` em EngineScreen.
+
+
+## 0.9.11
+- Adicionadas 10 variações masculinas de cabelo: corte militar, pompadour, penteado para trás, mullet, shag médio, cortina repartida, franja bagunçada, risco lateral, cachos curtos e cabelo longo preso.
+- Mantidos os índices das opções anteriores para preservar personagens já salvos.

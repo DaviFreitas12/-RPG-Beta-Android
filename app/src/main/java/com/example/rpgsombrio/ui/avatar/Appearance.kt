@@ -51,14 +51,14 @@ import kotlin.random.Random
 private val RACE_NAMES = listOf("Humano", "Elfo", "Anão", "Orc", "Tiefling", "Halfling")
 private val BODY_NAMES = listOf("Padrão", "Magro", "Forte")
 private val FACE_NAMES = listOf("Normal", "Cheio", "Anguloso")
-private val HAIR_NAMES = listOf("Careca", "Curto", "Longo", "Coque", "Moicano", "Rabo", "Trança", "Espetado", "Franja lateral", "Ondulado", "Afro", "Dreadlocks", "Tranças duplas", "Undercut", "Longo repartido", "Desgrenhado")
+private val HAIR_NAMES = listOf("Careca", "Curto", "Longo", "Coque", "Moicano", "Rabo", "Trança", "Espetado", "Franja lateral", "Ondulado", "Afro", "Dreadlocks", "Tranças duplas", "Undercut", "Longo repartido", "Desgrenhado", "Raspado lateral", "Trança lateral", "Topete", "Coques duplos", "Corte militar", "Pompadour", "Penteado para trás", "Mullet", "Shag médio", "Cortina repartida", "Franja bagunçada", "Risco lateral", "Cachos curtos", "Longo preso")
 private val EYE_STYLE_NAMES = listOf("Normal", "Estreito", "Grande")
 private val MOUTH_NAMES = listOf("Neutra", "Sorriso", "Séria", "Presas")
 private val BEARD_NAMES = listOf("Nenhuma", "Rala", "Cheia", "Bigode", "Longa", "Cavanhaque", "Barba curta", "Barba cerrada", "Bigode e cavanhaque")
 private val ACCESSORY_NAMES = listOf("Nenhum", "Cicatriz", "Tapa-olho", "Pintura", "Óculos", "Brinco", "Marca rúnica", "Pintura de guerra", "Piercing")
-private val OUTFIT_NAMES = listOf("Túnica", "Armadura", "Vestes", "Couro", "Manto", "Cota de malha", "Armadura real", "Roupas de patrulheiro", "Traje arcano", "Viajante", "Armadura de placas", "Armadura de escamas", "Brigandina", "Cavaleiro negro", "Guarda real", "Guerreiro tribal", "Manto de necromante", "Vestes de clérigo", "Traje de assassino", "Traje de nobre")
+private val OUTFIT_NAMES = listOf("Túnica", "Armadura", "Vestes", "Couro", "Manto", "Cota de malha", "Armadura real", "Roupas de patrulheiro", "Traje arcano", "Viajante", "Armadura de placas", "Armadura de escamas", "Brigandina", "Cavaleiro negro", "Guarda real", "Guerreiro tribal", "Manto de necromante", "Vestes de clérigo", "Traje de assassino", "Traje de nobre", "Armadura rúnica", "Couraça de gladiador", "Manto de viajante", "Vestes druídicas", "Armadura de sentinela", "Traje de alquimista")
 private val CAPE_NAMES = listOf("Sem capa", "Capa curta", "Capa longa", "Manto com capuz", "Capa rasgada", "Pelerine")
-private val HEADGEAR_NAMES = listOf("Nenhum", "Capuz", "Elmo", "Chapéu de mago", "Coroa", "Tiara", "Elmo fechado", "Bandana")
+private val HEADGEAR_NAMES = listOf("Nenhum", "Capuz", "Elmo", "Chapéu de mago", "Coroa", "Tiara", "Elmo fechado", "Bandana", "Máscara de couro", "Elmo com chifres", "Capuz aberto")
 private val WEAPON_NAMES = listOf("Nenhuma", "Espada", "Cajado", "Arco", "Machado", "Espada e escudo", "Adaga", "Lança", "Foice")
 
 private fun <T> List<T>.at(i: Int): T = this[i.coerceIn(0, lastIndex)]
@@ -134,7 +134,7 @@ private fun skinForRace(race: Int, current: Int): Int = when (race) {
 private fun lookSummary(look: CharacterLook): String {
     val colorNames = listOf("preto", "castanho", "ruivo", "loiro", "grisalho", "branco", "roxo", "verde", "vermelho", "azul", "prateado", "cobre", "verde-escuro", "rosa")
     val eyeNames = listOf("castanhos", "azuis", "verdes", "cinzentos", "âmbar", "vermelhos", "violeta")
-    val hairText = listOf("careca", "cabelo curto", "cabelo longo", "cabelo preso em coque", "moicano", "rabo de cavalo", "trança", "cabelo espetado", "cabelo com franja lateral", "cabelo ondulado", "cabelo afro", "dreadlocks", "tranças duplas", "cabelo undercut", "cabelo longo repartido", "cabelo desgrenhado")
+    val hairText = listOf("careca", "cabelo curto", "cabelo longo", "cabelo preso em coque", "moicano", "rabo de cavalo", "trança", "cabelo espetado", "cabelo com franja lateral", "cabelo ondulado", "cabelo afro", "dreadlocks", "tranças duplas", "cabelo undercut", "cabelo longo repartido", "cabelo desgrenhado", "cabelo raspado nas laterais", "trança lateral", "topete", "coques duplos", "corte militar", "topete pompadour", "cabelo penteado para trás", "mullet", "corte shag médio", "cabelo repartido ao meio", "franja bagunçada", "cabelo com risco lateral", "cachos curtos", "cabelo longo preso")
     val beardText = listOf("", "barba rala", "barba cheia", "bigode", "barba longa", "cavanhaque", "barba curta", "barba cerrada", "bigode e cavanhaque")
     val parts = mutableListOf<String>()
     parts += RACE_NAMES.at(look.race)
