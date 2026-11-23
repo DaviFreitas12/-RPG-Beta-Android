@@ -21,7 +21,7 @@ fun CombatActionCard(
     action: CombatAction,
     onQuickRoll: (CombatAction) -> Unit
 ) {
-    val borderColor = when (action.damageType.lowercase()) {
+    val borderColor = when (action.type.lowercase()) {
         "cortante" -> Color(0xFFFF5722)
         "perfurante" -> Color(0xFF9E9E9E)
         "contundente" -> Color(0xFFCDDC39)
@@ -41,9 +41,7 @@ fun CombatActionCard(
         color = Color(0xFF1E1E1E)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxSize().padding(8.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -54,17 +52,21 @@ fun CombatActionCard(
                 fontSize = 14.sp,
                 maxLines = 1
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Custo: ${action.resourceCost}", color = Color.LightGray, fontSize = 11.sp)
-                Text(text = action.damage, color = borderColor, fontWeight = FontWeight.Black, fontSize = 16.sp)
-            }
+
+            Text(
+                text = action.damageFormula.ifBlank { "Sem dano" },
+                color = borderColor,
+                fontWeight = FontWeight.Black,
+                fontSize = 16.sp
+            )
+
             Surface(
                 color = borderColor,
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "ROLAR ${action.bonus}",
+                    text = if (action.autoHit) "ACERTO AUTOMÁTICO" else "ROLAR ${action.attackBonus}",
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
