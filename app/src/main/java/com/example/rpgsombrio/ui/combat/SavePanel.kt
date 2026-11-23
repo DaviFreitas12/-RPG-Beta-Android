@@ -49,6 +49,7 @@ import com.example.rpgsombrio.ui.components.signed
 import com.example.rpgsombrio.ui.theme.Accent
 import com.example.rpgsombrio.ui.theme.Brand
 import com.example.rpgsombrio.ui.theme.Danger
+import com.example.rpgsombrio.ui.theme.Good
 import com.example.rpgsombrio.ui.theme.Ink
 import com.example.rpgsombrio.ui.theme.Muted
 
@@ -74,7 +75,7 @@ internal fun SavePanel(
 
     EditorCard("SALVAGUARDA", "Quem rola é o alvo escolhido na arena. Se falhar, pode receber uma condição por algumas rodadas.") {
         if (target == null) {
-            Text("Escolha um alvo na faixa de turnos.", color = Muted, fontSize = 12.sp)
+            Text("Escolha um alvo na faixa de turnos.", color = Muted, fontSize = 13.sp)
             return@EditorCard
         }
         if (target.isDying()) {
@@ -96,7 +97,7 @@ internal fun SavePanel(
             }
         }
         if (attrs.isEmpty()) {
-            Text("O sistema ${profile.name} não usa salvaguardas por modificador de atributo.", color = Muted, fontSize = 12.sp)
+            Text("O sistema ${profile.name} não usa salvaguardas por modificador de atributo.", color = Muted, fontSize = 13.sp)
             return@EditorCard
         }
 
@@ -124,7 +125,7 @@ internal fun SavePanel(
         }
         mods.describe().forEach { line ->
             val tint = when {
-                line.startsWith("Vantagem:") -> Color(0xFF4ADE80)
+                line.startsWith("Vantagem:") -> Good
                 line.startsWith("Desvantagem:") || line.startsWith("Falha") -> Danger
                 else -> Muted
             }
@@ -138,7 +139,7 @@ internal fun SavePanel(
         if (condition.isNotEmpty()) {
             NumberField("Duração (rodadas, 0 = até remover)", rounds, { rounds = it.coerceIn(0, 999) }, Modifier.fillMaxWidth())
             if (immuneToCondition(target.conditionImmunities, condition)) {
-                Text("${target.name} é imune a $condition: a condição não será aplicada.", color = Muted, fontSize = 12.sp)
+                Text("${target.name} é imune a $condition: a condição não será aplicada.", color = Muted, fontSize = 13.sp)
             }
         }
 

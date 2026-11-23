@@ -1,17 +1,20 @@
-# RPG Sombrio
+# RPG
 
-Aplicativo Android de RPG de mesa **multissistemas**, feito em Kotlin e Jetpack Compose, com identidade visual medieval sombria. Funciona 100% offline.
+Aplicativo Android de RPG de mesa **para qualquer sistema e qualquer estilo de jogo** (fantasia, terror, ficção científica, investigação...), feito em Kotlin e Jetpack Compose. Funciona 100% offline, com modo claro e escuro.
 
-**Versão:** 0.9.3 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
+**Versão:** 0.9.6 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
 
 ## Funcionalidades
 
-- **Campanha** — nome, descrição e sistema de regras em destaque.
-- **Personagens, Bestiário e Grimório** — fichas estruturadas com seções recolhíveis, guiadas pelo sistema da campanha. Retrato da galeria ou avatar em pixel art.
+- **Início** — tela de abertura enxuta: campanha atual e atalhos para personagens e dados.
+- **Campanha** — nome, descrição e sistema de regras.
+- **Configurações** — aparência (claro, escuro ou do celular) e informações do app.
+- **Personagens, Bestiário e Grimório** — fichas com cabeçalho (avatar, PV, CA, iniciativa) e abas Ficha, Combate, Itens e Perfil, guiadas pelo sistema da campanha. Retrato da galeria ou avatar em pixel art.
 - **Itens e Traços** — biblioteca de itens (tipo, peso, bônus, dano) e de vantagens/desvantagens com custo em pontos; a ficha tem inventário e orçamento de pontos.
 - **Sistemas** — construtor de sistemas próprios (atributos, recursos, perícias, dados, fórmulas). D&D 5e, D&D 2024 e Vampiro vêm como modelos editáveis.
 - **Motor de regras** — rolagens (d4–d100), fórmulas com variáveis (`1d20 + DES + PROF`), testes contra CD, iniciativa, turnos, ataques, salvaguardas, condições com duração e salvaguardas contra a morte.
 - **Arena de combate** — combate com criaturas e personagens, PV sincronizados com a ficha.
+- **Visual neutro e colorido** — modo claro e escuro; cada tipo de conteúdo tem a sua cor.
 - **Criador de aparência** — personagem em pixel art de corpo inteiro, desenhado por código.
 
 Os dados ficam no aparelho (SharedPreferences/JSON).
@@ -32,9 +35,10 @@ app/src/main/java/com/example/rpgsombrio/
 │   └── UserSystems.kt · CombatStore.kt
 └── ui/                    Interface (Jetpack Compose)
     ├── RpgApp.kt            navegação principal
-    ├── theme/               cores e tema
+    ├── theme/               paleta clara/escura e tema
     ├── components/          componentes reutilizáveis
-    ├── campaign/ · library/ telas de campanha e biblioteca
+    ├── home/ · campaign/    tela de abertura e campanha
+    ├── library/ · settings/ biblioteca e configurações
     ├── characters/ · bestiary/ · spellbook/ · items/ · traits/ · systems/
     ├── combat/              motor, arena de batalha e painel de salvaguardas
     └── avatar/              criador de aparência e sprites em pixel art

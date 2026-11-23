@@ -144,7 +144,7 @@ internal fun SpellbookScreen(modifier: Modifier = Modifier) {
             groups.forEach { (level, list) ->
                 item(key = "header-$level") {
                     Text("${spellLevelLabel(level).uppercase()} • ${list.size}", color = Accent, fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 6.dp))
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.padding(top = 6.dp))
                 }
                 items(list, key = { it.id }) { spell ->
                     SpellCard(
@@ -209,7 +209,7 @@ private fun SpellCard(spell: SpellEntry, expanded: Boolean, onToggle: () -> Unit
                 if (spell.description.isNotBlank()) Text(spell.description, color = Ink, fontSize = 13.sp)
                 if (spell.higherLevels.isNotBlank()) {
                     Text("Em níveis superiores", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text(spell.higherLevels, color = Muted, fontSize = 12.sp)
+                    Text(spell.higherLevels, color = Muted, fontSize = 13.sp)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     if (spell.damage.isNotBlank()) TextButton(onClick = onRoll) { Icon(Icons.Default.Casino, null); Text("Rolar efeito") }
@@ -251,7 +251,7 @@ private fun SpellEditor(
                 TextInput("Nome", spell.name, { onChange(spell.copy(name = it)) })
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Sistema", color = Muted, fontSize = 12.sp)
+                        Text("Sistema", color = Muted, fontSize = 13.sp)
                         Text(if (spell.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, spell.systemId),
                             color = Ink, fontWeight = FontWeight.SemiBold)
                     }
@@ -294,7 +294,7 @@ private fun SpellEditor(
                     TextInput("Custo", spell.cost, { onChange(spell.copy(cost = it)) }, Modifier.weight(1f))
                 }
                 Text("Dano/efeito aceita fórmulas com os valores da ficha (ex.: 2d8 + INT necrótico). Custo como \"3 Mana\" é debitado do recurso de mesmo nome ao conjurar.",
-                    color = Muted, fontSize = 12.sp)
+                    color = Muted, fontSize = 13.sp)
                 TextInput("Descrição", spell.description, { onChange(spell.copy(description = it)) }, singleLine = false, minLines = 5)
                 TextInput("Em níveis superiores", spell.higherLevels, { onChange(spell.copy(higherLevels = it)) }, singleLine = false, minLines = 2)
             }

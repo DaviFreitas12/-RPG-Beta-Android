@@ -832,7 +832,7 @@ object SheetStore {
 
     private fun demoMonsters(prefs: SharedPreferences): List<MonsterSheet> = listOf(
         MonsterSheet(
-            id = "demo-lobo", name = "Lobo sombrio", systemId = "dnd5e", type = "Fera", size = "Médio",
+            id = "demo-lobo", name = "Lobo selvagem", systemId = "dnd5e", type = "Fera", size = "Médio",
             challenge = "1/4", armorClass = 12, hp = 12, hpFormula = "2d8+3", speed = "12 m",
             attributes = mapOf("strength" to 14, "dexterity" to 15, "constitution" to 12,
                 "intelligence" to 3, "wisdom" to 12, "charisma" to 6),
@@ -855,7 +855,7 @@ object SheetStore {
 
     private fun demoSpells(): List<SpellEntry> = listOf(
         SpellEntry(
-            id = "demo-chama", name = "Chama sombria", level = 1, school = "Evocação",
+            id = "demo-chama", name = "Chama viva", level = 1, school = "Evocação",
             castingTime = "1 ação", range = "18 m", components = "V, S", duration = "Instantânea",
             damage = "2d8 necrótico",
             description = "Uma labareda escura atinge uma criatura à vista. Magia demonstrativa editável."

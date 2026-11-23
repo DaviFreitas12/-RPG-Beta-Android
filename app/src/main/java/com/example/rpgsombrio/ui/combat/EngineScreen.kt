@@ -1,5 +1,4 @@
 package com.example.rpgsombrio.ui.combat
-import com.example.rpgsombrio.ui.components.signed
 
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
@@ -126,7 +125,7 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     val library = remember { SheetStore.loadItems(prefs) }
     val log = remember { mutableStateListOf<RollLine>() }
 
-    var sourceKey by remember { mutableStateOf(prefs.getString("engine_source", MANUAL_SOURCE) ?: MANUAL_SOURCE) }
+    var sourceKey by remember { mutableStateOf(prefs.getString("engine_source", null) ?: characters.firstOrNull()?.let { CHARACTER_PREFIX + it.id } ?: MANUAL_SOURCE) }
     var manualVars by remember { mutableStateOf(prefs.getString("engine_manual_vars", "FOR=3, DES=2, PROF=2") ?: "") }
     var formula by remember { mutableStateOf(prefs.getString("engine_formula", "1d20 + FOR + PROF") ?: "1d20 + FOR + PROF") }
     var difficulty by remember { mutableStateOf(15) }
@@ -234,13 +233,13 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     }
 
     val sourceOptions: List<Pair<String, String>> =
-        listOf(MANUAL_SOURCE to "Manual (sem ficha)") +
+        listOf(MANUAL_SOURCE to "Sem ficha (valores manuais)") +
             characters.map { (CHARACTER_PREFIX + it.id) to "Personagem • ${it.name.ifBlank { "Sem nome" }}" } +
             monsters.map { (MONSTER_PREFIX + it.id) to "Criatura • ${it.name.ifBlank { "Sem nome" }}" }
     val sourceLabel = when {
         sourceCharacter != null -> "Personagem • ${sourceCharacter.name.ifBlank { "Sem nome" }}"
         sourceMonster != null -> "Criatura • ${sourceMonster.name.ifBlank { "Sem nome" }}"
-        else -> "Manual (sem ficha)"
+        else -> "Sem ficha (valores manuais)"
     }
 
     Column(modifier.fillMaxSize()) {
@@ -254,15 +253,15 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
         ) {
             item {
                 Column {
-                    Text("SISTEMA DE REGRAS", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Text("Motor de RPG", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Role dados, execute testes e controle a iniciativa e os pontos de vida da batalha — ligado às suas fichas.", color = Muted, fontSize = 12.sp)
+                    Text("DADOS E COMBATE", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    Text("Dados e combate", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("Role dados, faça testes e controle a iniciativa e os PV da batalha.", color = Muted, fontSize = 13.sp)
                 }
             }
 
             item {
-                EditorCard("FICHA ATIVA", "As rolagens abaixo usam os valores desta ficha ou criatura") {
-                    PickButton("Fonte: $sourceLabel", sourceOptions.map { it.second }) { pickSource(sourceOptions[it].first) }
+                EditorCard("QUEM ESTÁ ROLANDO", "As rolagens usam os valores da ficha ou criatura escolhida") {
+                    PickButton(sourceLabel, sourceOptions.map { it.second }) { pickSource(sourceOptions[it].first) }
                     if (sourceCharacter != null || sourceMonster != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             InfoPill(profile.name)
@@ -273,8 +272,8 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                             "${attr.abbr} ${if (bonus == null) "?" else if (attr.hasModifier) signed(bonus) else bonus.toString()}"
                         }
                         if (summary.isNotBlank()) Text(summary, color = Ink, fontSize = 12.sp)
-                        Text("Na fórmula, a sigla vale o modificador (ou o valor, se o atributo não tem modificador). Também existem PROF, NIVEL, CA, os recursos e o nome de cada perícia.",
-                            color = Muted, fontSize = 12.sp)
+                        Text("Na fórmula, a sigla do atributo vale o modificador. Também valem PROF, NIVEL e CA.",
+                            color = Muted, fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val cd = if (profile.isPool) poolDifficulty else difficulty.takeIf { it > 0 }
                             PickButton("Atributo", profile.attributes.map { it.label }, Modifier.weight(1f)) { index ->
@@ -287,12 +286,12 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                             }
                         }
                     } else {
-                        TextInput("Valores manuais (NOME=valor, …)", manualVars, {
+                        TextInput("Valores (ex.: FOR=3, DES=2)", manualVars, {
                             manualVars = it
                             prefs.edit().putString("engine_manual_vars", it).apply()
                         })
-                        Text("Sem ficha, informe você mesmo os valores que a fórmula usa. Escolha uma ficha acima para ligá-los automaticamente.",
-                            color = Muted, fontSize = 12.sp)
+                        Text("Escolha uma ficha acima para usar os valores dela automaticamente.",
+                            color = Muted, fontSize = 13.sp)
                     }
                 }
             }
@@ -300,7 +299,7 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
             item {
                 EditorCard("ROLAGEM E TESTES",
                     if (profile.isPool) "Reserva de dados: cada d${profile.poolSides} com ${profile.poolTarget}+ é um sucesso"
-                    else "Fórmulas executáveis: 1d20 + FOR + PROF, 2d6 + 3, (1d8 + FOR) * 2") {
+                    else "Exemplos: 1d20 + FOR + PROF, 2d6 + 3, (1d8 + FOR) * 2") {
                     if (profile.isPool) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             NumberField("Dados na reserva", poolDice, { poolDice = it.coerceIn(0, 100) }, Modifier.weight(1f))
@@ -312,15 +311,15 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                         }
                     } else {
                         TextInput("Fórmula", formula, { formula = it })
-                        NumberField("Classe de dificuldade (0 = sem CD)", difficulty, { difficulty = it.coerceAtLeast(0) }, Modifier.fillMaxWidth())
+                        NumberField("CD (0 = sem CD)", difficulty, { difficulty = it.coerceAtLeast(0) }, Modifier.fillMaxWidth())
                         Button(onClick = {
                             log.push(rollFormula(engine, "Teste", formula, variables, difficulty.takeIf { it > 0 }))
                             prefs.edit().putString("engine_formula", formula).apply()
                         }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Brand)) {
-                            Icon(Icons.Default.Casino, null); Spacer(Modifier.width(8.dp)); Text("Executar teste")
+                            Icon(Icons.Default.Casino, null); Spacer(Modifier.width(8.dp)); Text("Rolar")
                         }
                     }
-                    Text("Atalhos de rolagem", color = Muted, fontSize = 12.sp)
+                    Text("Atalhos de rolagem", color = Muted, fontSize = 13.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         profile.dice.forEach { die ->
                             OutlinedButton(onClick = { log.push(rollFormula(engine, "d$die", "d$die", emptyMap())) },
@@ -356,7 +355,7 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                    Text("Ou adicione à mão:", color = Muted, fontSize = 12.sp)
+                    Text("Ou adicione à mão:", color = Muted, fontSize = 13.sp)
                     TextInput("Nome do combatente", actorName, { actorName = it })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         NumberField("Bônus iniciativa", actorInitiativeBonus, { actorInitiativeBonus = it }, Modifier.weight(1f))
@@ -375,8 +374,8 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                         Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar e rolar iniciativa")
                     }
 
-                    if (ordered.isEmpty()) Text("Nenhum combatente na iniciativa.", color = Muted, fontSize = 12.sp)
-                    else Text("${ordered.size} participante(s) na batalha — veja a arena logo abaixo.", color = Muted, fontSize = 12.sp)
+                    if (ordered.isEmpty()) Text("Nenhum combatente na iniciativa.", color = Muted, fontSize = 13.sp)
+                    else Text("${ordered.size} participante(s) na batalha — veja a arena logo abaixo.", color = Muted, fontSize = 13.sp)
                 }
             }
 
@@ -405,19 +404,6 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                         onAdjustHp = { fighter, delta -> setHp(fighter, delta) },
                         onRemove = { id -> combatants.removeAll { it.id == id }; persistCombat() }
                     )
-                }
-            }
-
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = Panel2)) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-                        Icon(Icons.Default.Info, null, tint = Accent)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Beta 0.9.2: fichas, criaturas e magias alimentam o motor. Atributos viram variáveis (a sigla vale o modificador), " +
-                            "as fórmulas e os dados vêm do sistema da ficha, sistemas de reserva de dados contam sucessos, e os PV dos personagens " +
-                            "ficam sincronizados entre o combate e a ficha. As condições têm efeito: Atordoado, Paralisado e afins pulam o turno, e vantagem/desvantagem entram sozinhas nos ataques. Condições podem ter duração em rodadas e expiram sozinhas, e a salvaguarda do alvo pode aplicar uma condição se falhar. Este é um motor genérico, não uma implementação das regras oficiais de um jogo.",
-                            color = Ink, fontSize = 12.sp)
-                    }
                 }
             }
         }

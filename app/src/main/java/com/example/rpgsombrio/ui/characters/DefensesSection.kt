@@ -95,7 +95,7 @@ internal fun DefensesSection(
         }
         if (defenses.isEmpty()) EmptyHint("Nenhuma defesa. Escolha o tipo e toque no tipo de dano.")
 
-        Text("Adicionar como", color = Muted, fontSize = 12.sp)
+        Text("Adicionar como", color = Muted, fontSize = 13.sp)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(DefenseKind.ALL) { k ->
                 FilterChip(selected = k == kind, onClick = { kind = k }, label = { Text(kindShortLabels.getValue(k)) })

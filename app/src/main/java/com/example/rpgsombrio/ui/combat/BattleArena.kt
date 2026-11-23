@@ -115,11 +115,15 @@ import com.example.rpgsombrio.ui.components.push
 import com.example.rpgsombrio.ui.theme.Accent
 import com.example.rpgsombrio.ui.theme.Brand
 import com.example.rpgsombrio.ui.theme.Danger
+import com.example.rpgsombrio.ui.theme.Gold
+import com.example.rpgsombrio.ui.theme.Good
 import com.example.rpgsombrio.ui.theme.Hairline
 import com.example.rpgsombrio.ui.theme.Ink
 import com.example.rpgsombrio.ui.theme.Muted
 import com.example.rpgsombrio.ui.theme.Night
+import com.example.rpgsombrio.ui.theme.Panel
 import com.example.rpgsombrio.ui.theme.Panel2
+import com.example.rpgsombrio.ui.theme.Warn
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -135,9 +139,6 @@ import kotlinx.coroutines.launch
 // aqui só há apresentação.
 // ---------------------------------------------------------------------------------------------
 
-private val Gold = Color(0xFFFFC857)
-private val Good = Color(0xFF4ADE80)
-private val Warn = Color(0xFFFACC15)
 
 /** Um ataque já resolvido, pronto para ser animado. Os PV já foram aplicados; a animação só os revela aos poucos. */
 internal data class BattleEvent(
@@ -226,7 +227,7 @@ private fun HpBar(current: Float, max: Int, modifier: Modifier = Modifier) {
         ratio > .3f -> Warn
         else -> Danger
     }
-    Box(modifier.height(8.dp).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF))) {
+    Box(modifier.height(8.dp).clip(RoundedCornerShape(50)).background(Hairline)) {
         Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(50)).background(color))
     }
 }
@@ -287,7 +288,7 @@ private fun FighterCard(
 ) {
     var open by remember { mutableStateOf(false) }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(role, color = roleColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Text(role, color = roleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         Box {
             if (fighter == null) {
                 Box(Modifier.size(90.dp).clip(RoundedCornerShape(18.dp)).background(Panel2).clickable { open = true }, contentAlignment = Alignment.Center) {
@@ -311,7 +312,7 @@ private fun FighterCard(
         Text(fighter?.name ?: "Escolher", color = Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (fighter != null) {
             HpBar(shownHp, fighter.maxHp, Modifier.fillMaxWidth(0.9f))
-            Text("PV ${shownHp.roundToInt()}/${fighter.maxHp}", color = Muted, fontSize = 11.sp)
+            Text("PV ${shownHp.roundToInt()}/${fighter.maxHp}", color = Muted, fontSize = 13.sp)
             val badges = conditionBadges(fighter.conditions)
             Text(if (badges.isEmpty()) " " else badges, fontSize = 14.sp, maxLines = 1)
         }
@@ -442,14 +443,14 @@ private fun BattleStage(
         phase == StagePhase.ROLLING || result == null -> Brand
         result?.outcome?.critical == true -> Gold
         result?.outcome?.fumble == true -> Danger
-        result?.outcome?.hit == false -> Color(0xFF5A6075)
+        result?.outcome?.hit == false -> Muted
         else -> Brand
     }
     val lungePx = 96f * density
 
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF1D2233), Color(0xFF12151D))))
+            .background(Brush.verticalGradient(listOf(Panel2, Panel)))
             .border(1.dp, Hairline, RoundedCornerShape(24.dp))
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -480,7 +481,7 @@ private fun BattleStage(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 if (floatTitle.isNotEmpty()) {
-                                    Text(floatTitle, style = TextStyle(color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black,
+                                    Text(floatTitle, style = TextStyle(color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black,
                                         shadow = Shadow(Color.Black, Offset(1f, 2f), 4f)))
                                 }
                                 Text(floatText, style = TextStyle(color = floatColor, fontSize = 30.sp, fontWeight = FontWeight.Black,
@@ -494,7 +495,7 @@ private fun BattleStage(
             val shownResult = result
             when {
                 phase == StagePhase.ROLLING -> Text("Rolando…", color = Accent, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                shownResult == null -> Text("Escolha o ataque e toque em Atacar", color = Muted, fontSize = 12.sp)
+                shownResult == null -> Text("Escolha o ataque e toque em Atacar", color = Muted, fontSize = 13.sp)
                 else -> ResultSummary(shownResult, defenseLabel)
             }
         }
@@ -522,7 +523,7 @@ private fun ResultSummary(e: BattleEvent, defenseLabel: String) {
     }.joinToString(" • ")
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(headline, color = color, fontWeight = FontWeight.Black, fontSize = 17.sp, letterSpacing = 1.sp)
-        if (details.isNotBlank()) Text(details, color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center)
+        if (details.isNotBlank()) Text(details, color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
     }
 }
 
@@ -552,11 +553,11 @@ private fun TurnStrip(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 FighterAvatar(f.name, portraits[f.id].orEmpty(), 46.dp, ring, defeated = f.currentHp <= 0)
-                Text(f.name, color = if (isActive) Ink else Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Text(f.name, color = if (isActive) Ink else Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
-                Text("INI ${f.initiative}" + if (f.id == attackerId && !isActive) " ⚔" else "", color = Muted, fontSize = 9.sp, maxLines = 1)
+                Text("INI ${f.initiative}" + if (f.id == attackerId && !isActive) " ⚔" else "", color = Muted, fontSize = 11.sp, maxLines = 1)
                 val badges = conditionBadges(f.conditions)
-                Text(if (badges.isEmpty()) " " else badges, fontSize = 11.sp, maxLines = 1)
+                Text(if (badges.isEmpty()) " " else badges, fontSize = 12.sp, maxLines = 1)
             }
         }
     }
@@ -587,10 +588,10 @@ private fun RosterRow(
                     InfoPill("INI ${fighter.initiative}")
                 }
                 HpBar(hp, fighter.maxHp, Modifier.fillMaxWidth())
-                Text("PV ${fighter.currentHp}/${fighter.maxHp}${if (fighter.tempHp > 0) " (+${fighter.tempHp} temp.)" else ""} • $defenseLabel ${fighter.armorClass}", color = Muted, fontSize = 11.sp)
-                fighter.deathStatus().takeIf { it.isNotBlank() }?.let { Text(it, color = Danger, fontSize = 11.sp) }
+                Text("PV ${fighter.currentHp}/${fighter.maxHp}${if (fighter.tempHp > 0) " (+${fighter.tempHp} temp.)" else ""} • $defenseLabel ${fighter.armorClass}", color = Muted, fontSize = 13.sp)
+                fighter.deathStatus().takeIf { it.isNotBlank() }?.let { Text(it, color = Danger, fontSize = 12.sp) }
                 if (fighter.conditions.isNotEmpty()) {
-                    Text(fighter.conditions.joinToString("  ") { "${conditionEmoji(it)} ${fighter.conditionLabel(it)}" }, color = Accent, fontSize = 11.sp)
+                    Text(fighter.conditions.joinToString("  ") { "${conditionEmoji(it)} ${fighter.conditionLabel(it)}" }, color = Accent, fontSize = 12.sp)
                 }
             }
             Column {
@@ -711,8 +712,8 @@ internal fun BattleArena(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
-            Text("BATALHA", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-            Text("Rodada $round • Turno ${activeIndex + 1} de ${fighters.size}${active?.let { " • ${it.name}" } ?: ""}", color = Muted, fontSize = 12.sp)
+            Text("BATALHA", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Text("Rodada $round • Turno ${activeIndex + 1} de ${fighters.size}${active?.let { " • ${it.name}" } ?: ""}", color = Muted, fontSize = 13.sp)
         }
 
         TurnStrip(fighters, activeIndex, portraits, attacker?.id, target?.id) { f ->
@@ -745,7 +746,7 @@ internal fun BattleArena(
             PickButton("Ataque: ${chosen?.label ?: "Fórmulas manuais"}", options.map { it.label } + "Fórmulas manuais") { optionIndex = it }
             if (chosen != null) {
                 Text(listOf(chosen.bonus.ifBlank { if (chosen.autoHit) "sem teste de acerto" else "" }, chosen.damage).filter { it.isNotBlank() }.joinToString(" • "),
-                    color = Muted, fontSize = 12.sp)
+                    color = Muted, fontSize = 13.sp)
             }
         }
         if (chosen == null) {
@@ -788,14 +789,14 @@ internal fun BattleArena(
             OutlinedButton(onClick = onEndCombat, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Encerrar combate") }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Animações da batalha", color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text("Animações da batalha", color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
             Switch(checked = animationsOn, onCheckedChange = {
                 animationsOn = it
                 prefs.edit().putBoolean("engine_anim", it).apply()
             })
         }
 
-        Text("PARTICIPANTES", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Text("PARTICIPANTES", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         fighters.forEachIndexed { index, f ->
             RosterRow(
                 fighter = f, isActive = index == activeIndex, portrait = portraits[f.id].orEmpty(), defenseLabel = defenseLabel,

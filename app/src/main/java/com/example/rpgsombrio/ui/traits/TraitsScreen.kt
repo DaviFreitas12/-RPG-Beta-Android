@@ -175,7 +175,7 @@ private fun TraitEditor(
         item {
             CollapsibleSection("IDENTIDADE", summary = listOf(entry.name, traitCostLabel(entry)).filter { it.isNotBlank() }.joinToString(" • ")) {
                 TextInput("Nome", entry.name, { onChange(entry.copy(name = it)) })
-                Text("Tipo", color = Muted, fontSize = 12.sp)
+                Text("Tipo", color = Muted, fontSize = 13.sp)
                 ChipFilterRow(
                     listOf("Vantagem", "Desvantagem"),
                     if (entry.isAdvantage) "Vantagem" else "Desvantagem"
@@ -187,7 +187,7 @@ private fun TraitEditor(
                 Text(
                     if (entry.isAdvantage) "Vantagens gastam pontos do orçamento da ficha."
                     else "Desvantagens devolvem pontos ao orçamento da ficha.",
-                    color = Muted, fontSize = 12.sp
+                    color = Muted, fontSize = 13.sp
                 )
                 TextInput("Categoria (física, social, mental…)", entry.category, { onChange(entry.copy(category = it)) })
             }
@@ -196,7 +196,7 @@ private fun TraitEditor(
             CollapsibleSection("SISTEMA", summary = if (entry.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, entry.systemId)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Disponível em", color = Muted, fontSize = 12.sp)
+                        Text("Disponível em", color = Muted, fontSize = 13.sp)
                         Text(
                             if (entry.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, entry.systemId),
                             color = Ink, fontWeight = FontWeight.SemiBold
@@ -204,7 +204,7 @@ private fun TraitEditor(
                     }
                     TextButton(onClick = { pickingSystem = true }) { Text("Alterar") }
                 }
-                Text("Só as fichas desse sistema veem este traço na hora de vincular.", color = Muted, fontSize = 12.sp)
+                Text("Só as fichas desse sistema veem este traço na hora de vincular.", color = Muted, fontSize = 13.sp)
                 DuplicateToSystem(systemOptions(prefs), entry.systemId, SheetStore.activeSystemId(prefs), onDuplicate)
             }
         }

@@ -39,6 +39,8 @@ import com.example.rpgsombrio.ui.components.TextInput
 import com.example.rpgsombrio.ui.theme.Accent
 import com.example.rpgsombrio.ui.theme.Hairline
 import com.example.rpgsombrio.ui.theme.Muted
+import com.example.rpgsombrio.ui.theme.Panel
+import com.example.rpgsombrio.ui.theme.Panel2
 import kotlin.random.Random
 
 private val RACE_NAMES = listOf("Humano", "Elfo", "Anão", "Orc", "Tiefling", "Halfling")
@@ -77,7 +79,7 @@ internal fun AvatarView(look: CharacterLook, size: Dp = 84.dp, modifier: Modifie
     val box = if (full) modifier.size(width = size, height = size * (SPRITE_H / SPRITE_W.toFloat())) else modifier.size(size)
     Box(
         box.clip(RoundedCornerShape(14.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF2A3046), Color(0xFF151824))))
+            .background(Brush.verticalGradient(listOf(Panel2, Panel)))
     ) {
         Image(
             bitmap = bitmap, contentDescription = "Avatar do personagem",
@@ -91,7 +93,7 @@ internal fun AvatarView(look: CharacterLook, size: Dp = 84.dp, modifier: Modifie
 @Composable
 private fun SwatchRow(label: String, colors: List<Int>, selected: Int, onSelect: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, color = Muted, fontSize = 12.sp)
+        Text(label, color = Muted, fontSize = 13.sp)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             colors.forEachIndexed { i, argb ->
                 Box(
@@ -107,7 +109,7 @@ private fun SwatchRow(label: String, colors: List<Int>, selected: Int, onSelect:
 @Composable
 private fun ChoiceRow(label: String, names: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, color = Muted, fontSize = 12.sp)
+        Text(label, color = Muted, fontSize = 13.sp)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             names.forEachIndexed { i, name ->
                 FilterChip(selected = i == selected, onClick = { onSelect(i) }, label = { Text(name) })
@@ -150,7 +152,7 @@ internal fun AppearanceSection(sheet: CharacterSheet, onChange: (CharacterSheet)
     CollapsibleSection(
         "APARÊNCIA",
         summary = if (look.configured) listOf(RACE_NAMES.at(look.race), look.age, look.height).filter { it.isNotBlank() }.joinToString(" • ") else "Crie o visual do personagem",
-        startExpanded = false
+        startExpanded = !look.configured
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AvatarView(look, 120.dp, full = true)
@@ -169,7 +171,7 @@ internal fun AppearanceSection(sheet: CharacterSheet, onChange: (CharacterSheet)
                         headgear = r.nextInt(HEADGEAR_NAMES.size), weapon = r.nextInt(WEAPON_NAMES.size)
                     ))
                 }) { Text("Sortear") }
-                Text("O retrato da galeria, se existir, aparece no lugar do avatar.", color = Muted, fontSize = 11.sp)
+                Text("O retrato da galeria, se existir, aparece no lugar do avatar.", color = Muted, fontSize = 13.sp)
             }
         }
         ChoiceRow("Raça", RACE_NAMES, look.race) { update(look.copy(race = it, skin = skinForRace(it, look.skin))) }

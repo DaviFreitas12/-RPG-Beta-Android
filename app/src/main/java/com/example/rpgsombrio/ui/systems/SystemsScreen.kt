@@ -30,6 +30,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -118,12 +119,12 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
         ) {
             item { ScreenHeader("Ferramentas do mestre", "Sistemas", "Crie sistemas próprios ou parta de um modelo pronto. Cada ficha e cada campanha escolhe o seu.") }
             item {
-                Button(
+                OutlinedButton(
                     onClick = { val s = UserSystemStore.blank(); systems.add(0, s); persist(); openId = s.id },
-                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Brand)
+                    modifier = Modifier.fillMaxWidth()
                 ) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Novo sistema em branco") }
             }
-            if (systems.isNotEmpty()) item { Text("MEUS SISTEMAS", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
+            if (systems.isNotEmpty()) item { Text("MEUS SISTEMAS", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp) }
             items(systems, key = { it.id }) { system ->
                 SystemCard(
                     title = system.name, description = system.description,
@@ -131,32 +132,32 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
                     isActive = system.id == activeId, usedBy = usage[system.id] ?: 0,
                     onOpen = { openId = system.id }
                 ) {
-                    if (system.id != activeId) TextButton(onClick = {
+                    if (system.id != activeId) FilledTonalButton(onClick = {
                         SheetStore.setActiveSystem(prefs, system.id); activeId = system.id
                     }) { Text("Usar na campanha") }
-                    TextButton(onClick = {
+                    OutlinedButton(onClick = {
                         val copy = UserSystemStore.duplicateOf(prefs, system.id)
                         systems.add(0, copy); persist()
                     }) { Text("Duplicar") }
                 }
             }
-            item { Text("MODELOS PRONTOS", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
+            item { Text("MODELOS PRONTOS", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp) }
             items(
                 RuleSystemCatalog.systems.filter { it.kind != RuleSystemKind.CUSTOM && it.kind != RuleSystemKind.GENERIC },
                 key = { it.id }
             ) { def ->
                 SystemCard(
                     title = def.name, description = def.description,
-                    structure = "${def.attributes.size} atributos • ${def.resources.size} recursos • modelo de fábrica",
+                    structure = "${def.attributes.size} atributos • ${def.resources.size} recursos • modelo pronto",
                     isActive = def.id == activeId, usedBy = usage[def.id] ?: 0, onOpen = null
                 ) {
-                    if (def.id != activeId) TextButton(onClick = {
+                    if (def.id != activeId) FilledTonalButton(onClick = {
                         SheetStore.setActiveSystem(prefs, def.id); activeId = def.id
                     }) { Text("Usar na campanha") }
-                    TextButton(onClick = {
+                    OutlinedButton(onClick = {
                         val copy = UserSystemStore.duplicateOf(prefs, def.id)
                         systems.add(0, copy); persist(); openId = copy.id
-                    }) { Text("Duplicar e editar") }
+                    }) { Text("Copiar e editar") }
                 }
             }
         }
@@ -194,13 +195,13 @@ private fun SystemCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title.ifBlank { "Sem nome" }, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            if (description.isNotBlank()) Text(description, color = Muted, fontSize = 12.sp)
+            if (description.isNotBlank()) Text(description, color = Muted, fontSize = 13.sp)
             Text(structure, color = Accent, fontSize = 12.sp)
             if (isActive || usedBy > 0) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (isActive) InfoPill("Sistema da campanha")
                 if (usedBy > 0) InfoPill("$usedBy fichas")
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { actions() }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
         }
     }
 }
@@ -257,7 +258,7 @@ private fun SystemEditor(
                     NumberField("Orçamento de pontos (0 = sem limite)", system.traitBudget,
                         { onChange(system.copy(traitBudget = it.coerceAtLeast(0))) })
                     Text("Vantagens gastam pontos; desvantagens devolvem. A ficha mostra quantos pontos ainda estão livres.",
-                        color = Muted, fontSize = 12.sp)
+                        color = Muted, fontSize = 13.sp)
                 }
             }
         }
@@ -289,7 +290,7 @@ private fun SystemEditor(
                                     NumberField("Base", a.modBase, { update(a.copy(modBase = it)) }, Modifier.weight(1f))
                                     NumberField("Divisor", a.modDivisor, { update(a.copy(modDivisor = it.coerceAtLeast(1))) }, Modifier.weight(1f))
                                 }
-                                Text("Modificador = piso((valor − base) ÷ divisor). D&D: base 10 e divisor 2.", color = Muted, fontSize = 12.sp)
+                                Text("Modificador = piso((valor − base) ÷ divisor). D&D: base 10 e divisor 2.", color = Muted, fontSize = 13.sp)
                             }
                         }
                     }
@@ -334,7 +335,7 @@ private fun SystemEditor(
                     }
                 }
                 AddRowButton("Adicionar perícia") { onChange(system.copy(skills = system.skills + UserSkill("Nova perícia"))) }
-                Text("Fichas já criadas recebem as perícias novas pelo botão \"Adicionar perícias do sistema\".", color = Muted, fontSize = 12.sp)
+                Text("Fichas já criadas recebem as perícias novas pelo botão \"Adicionar perícias do sistema\".", color = Muted, fontSize = 13.sp)
             }
         }
 
@@ -355,7 +356,7 @@ private fun SystemEditor(
                 TextInput("Fórmula de iniciativa", system.initiativeFormula, { onChange(system.copy(initiativeFormula = it)) })
                 Text("Exemplo: 1d20 + DES + PROF. A sigla de um atributo vale o seu modificador (ou o valor, se ele não calcula modificador). " +
                     "A fórmula de teste sugere o texto do Motor e define o dado-base das rolagens de atributo e perícia (vazio = 1d20); " +
-                    "vazia, a iniciativa usa o dado-base + DES (quando há).", color = Muted, fontSize = 12.sp)
+                    "vazia, a iniciativa usa o dado-base + DES (quando há).", color = Muted, fontSize = 13.sp)
                 ToggleRow("Reserva de dados (conta sucessos)", system.rollStyle == ROLL_POOL) {
                     onChange(system.copy(rollStyle = if (it) ROLL_POOL else ROLL_SUM))
                 }
@@ -365,7 +366,7 @@ private fun SystemEditor(
                         NumberField("Sucesso a partir de", system.poolTarget, { onChange(system.copy(poolTarget = it.coerceIn(2, system.poolSides))) }, Modifier.weight(1f))
                     }
                     Text("Testes de atributo e perícia rolam uma reserva: atributo + pontos da perícia dados; cada dado com o valor de sucesso ou mais conta um sucesso.",
-                        color = Muted, fontSize = 12.sp)
+                        color = Muted, fontSize = 13.sp)
                 }
             }
         }

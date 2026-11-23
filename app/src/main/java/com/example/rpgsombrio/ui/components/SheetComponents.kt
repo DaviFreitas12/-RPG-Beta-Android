@@ -88,9 +88,9 @@ internal fun <T> List<T>.without(index: Int): List<T> = filterIndexed { i, _ -> 
 @Composable
 internal fun ScreenHeader(kicker: String, title: String, subtitle: String = "") {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(kicker.uppercase(), color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text(kicker.uppercase(), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         Text(title, color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 12.sp)
+        if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 13.sp)
     }
 }
 
@@ -144,8 +144,8 @@ internal fun CollapsibleSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    if (!expanded && summary.isNotBlank()) Text(summary, color = Muted, fontSize = 12.sp, maxLines = 1)
+                    Text(title, color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    if (!expanded && summary.isNotBlank()) Text(summary, color = Muted, fontSize = 13.sp, maxLines = 1)
                 }
                 Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (expanded) "Recolher" else "Expandir", tint = Muted)
@@ -167,7 +167,7 @@ internal fun TextInput(
     singleLine: Boolean = true, minLines: Int = 1
 ) {
     OutlinedTextField(
-        value = value, onValueChange = onChange, label = { Text(label) },
+        value = value, onValueChange = onChange, label = { Text(label, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
         modifier = modifier, singleLine = singleLine, minLines = minLines
     )
 }
@@ -201,7 +201,7 @@ internal fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> U
 
 @Composable
 internal fun EmptyHint(text: String) {
-    Text(text, color = Muted, fontSize = 12.sp)
+    Text(text, color = Muted, fontSize = 13.sp)
 }
 
 @Composable
@@ -249,7 +249,7 @@ internal fun SystemPickerDialog(
     fun PickRow(name: String, note: String, selected: Boolean, onClick: () -> Unit) {
         Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 4.dp)) {
             Text(name, color = if (selected) Accent else Ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-            if (note.isNotBlank()) Text(note, color = Muted, fontSize = 12.sp)
+            if (note.isNotBlank()) Text(note, color = Muted, fontSize = 13.sp)
         }
     }
     AlertDialog(
@@ -432,12 +432,12 @@ internal fun SystemBinding(
     var picking by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("Sistema", color = Muted, fontSize = 12.sp)
+            Text("Sistema", color = Muted, fontSize = 13.sp)
             Text(systemName, color = Ink, fontWeight = FontWeight.SemiBold)
         }
         TextButton(onClick = { picking = true }) { Text("Alterar") }
     }
-    Text(hint, color = Muted, fontSize = 12.sp)
+    Text(hint, color = Muted, fontSize = 13.sp)
     if (picking) {
         SystemPickerDialog(
             title = "Sistema", options = options, currentId = currentId, campaignId = campaignId, allowAll = true,
@@ -451,7 +451,7 @@ internal fun SystemBinding(
 internal fun DuplicateToSystem(options: List<SystemOption>, currentId: String, campaignId: String?, onDuplicate: (String) -> Unit) {
     var picking by remember { mutableStateOf(false) }
     OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) { Text("Duplicar para outro sistema") }
-    Text("Cria uma cópia ligada ao sistema escolhido, para ajustar os valores nele.", color = Muted, fontSize = 12.sp)
+    Text("Cria uma cópia ligada ao sistema escolhido, para ajustar os valores nele.", color = Muted, fontSize = 13.sp)
     if (picking) {
         SystemPickerDialog(
             title = "Duplicar para…", options = options.filter { it.id != currentId }, currentId = "-", campaignId = campaignId,

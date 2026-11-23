@@ -2,6 +2,24 @@
 
 Todas as mudanças relevantes do RPG Sombrio, da mais recente para a mais antiga. Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 
+## 0.9.4 — Novo visual neutro, com modo claro e escuro
+
+### Adicionado
+- Tela **Início**, enxuta: campanha atual, atalho para personagens e para o motor, e acesso às configurações.
+- Tela **Configurações** (aparência e versão do app). A escolha do modo claro/escuro saiu da tela Campanha.
+
+### Alterado
+- A tela Campanha ficou só com nome, descrição e sistema; os atalhos foram para o Início e a Biblioteca.
+- Identidade visual redesenhada para servir a qualquer tipo de RPG: base neutra (fundo quente no claro, grafite no escuro) e destaque verde-água, no lugar do índigo sombrio.
+- **Modo claro, escuro ou do sistema**, escolhido em Configurações e lembrado entre aberturas. Ícones da barra de status acompanham o modo.
+- Cartões de acesso rápido com ícone colorido por categoria (personagens, criaturas, magias, itens, motor, traços).
+- Cabeçalho da Campanha sem brasão medieval; textos e nomes padrão neutros ("Minha campanha", "Sua mesa, suas regras").
+- Textos pequenos (9–11sp) aumentados para 11–12sp.
+- Cores fixas da arena de combate e do criador de aparência passaram a seguir o tema.
+
+### Removido
+- Imagem `rpg_crest.png` (2,6 MB), que deixava o APK maior sem necessidade.
+
 ## 0.9.3 — Aparência e organização do projeto
 
 ### Adicionado

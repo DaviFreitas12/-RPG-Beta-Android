@@ -4,6 +4,20 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -222,6 +236,7 @@ private fun CharacterCard(sheet: CharacterSheet, prefs: SharedPreferences, onCli
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CharacterEditor(
     modifier: Modifier,
@@ -238,64 +253,207 @@ private fun CharacterEditor(
     var targetDefense by remember { mutableStateOf(0) }
     val variables = characterVariables(sheet, profile, library)
     val defense = targetDefense.takeIf { it > 0 }
+    val armorClass = remember(sheet.inventory, sheet.armorClass) { effectiveArmorClass(sheet, library) }
+
+    // Abas: o que se consulta jogando (Ficha, Combate, Itens) separado do que se monta uma vez (Perfil).
+    val tabs = listOf("Ficha", "Combate") + (if (profile.usesInventory) listOf("Itens") else emptyList()) + listOf("Perfil")
+    var savedTab by rememberSaveable(sheet.id) { mutableStateOf(if (sheet.name.isBlank()) "Perfil" else "Ficha") }
+    val tab = if (savedTab in tabs) savedTab else "Ficha"
+    val listState = rememberLazyListState()
+    // Ao trocar de aba, volta ao topo do conteúdo (mas não ao topo da página, para não reabrir o cabeçalho).
+    LaunchedEffect(tab) { if (listState.firstVisibleItemIndex > 2) listState.scrollToItem(2) }
+    // Quando o cabeçalho grande sai da tela, uma barra compacta com nome, PV e CA fica junto das abas.
+    val showMini by remember { derivedStateOf { listState.firstVisibleItemIndex > 1 } }
+
+    fun rollInitiativeToLog() {
+        val result = rollInitiative(engine, profile, variables)
+        log.push(RollLine("Iniciativa: ${describeRoll(result.roll)}" + if (result.note.isBlank()) "" else " • ${result.note}"))
+    }
 
     Column(modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
+            state = listState,
+            contentPadding = PaddingValues(top = 0.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { EditorTopBar("Ficha • ${profile.name}", onBack, onDelete) }
-            item { IdentitySection(sheet, profile, prefs, onChange) }
-            item { AppearanceSection(sheet, onChange) }
-            item { RollPanel(sheet, profile, prefs, engine, variables, targetDefense, { targetDefense = it }, log) }
-            item { ResourcesSection(sheet, profile, onChange) }
+            item { Column { Spacer(Modifier.height(8.dp)); EditorTopBar("Ficha • ${profile.name}", onBack, onDelete) } }
             item {
-                CollapsibleSection("ATRIBUTOS", summary = "${profile.attributes.size} atributos") {
-                    AttributeGrid(
-                        profile, sheet.attributes,
-                        onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) }
-                    ) { key, value ->
-                        onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                SheetHeader(sheet, profile, armorClass, onOpenProfile = { savedTab = "Perfil" }, onChange = onChange, onInitiative = { rollInitiativeToLog() })
+            }
+            stickyHeader {
+                Column(Modifier.fillMaxWidth().background(Night)) {
+                    if (showMini) MiniHeader(sheet, profile, armorClass) { savedTab = "Perfil" }
+                    TabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0), containerColor = Night, contentColor = Accent) {
+                        tabs.forEach { name ->
+                            Tab(
+                                selected = name == tab, onClick = { savedTab = name },
+                                text = { Text(name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) },
+                                unselectedContentColor = Muted
+                            )
+                        }
                     }
+                    Spacer(Modifier.height(2.dp))
                 }
             }
-            if (profile.usesProficiency && !profile.isPool) item {
-                SavesSection(sheet, profile, onChange, onRoll = { attr -> log.push(rollSaveCheck(engine, sheet, profile, attr)) })
-            }
-            if (profile.usesSkills) item {
-                SkillsSection(sheet, profile, onChange, onRoll = { skill -> log.push(rollSkillCheck(engine, sheet, profile, skill)) })
-            }
-            if (profile.usesTraits) item { TraitsSection(sheet, profile, prefs, onChange) }
-            if (profile.usesAttacks) item {
-                AttacksSection(sheet, library, onChange, onRoll = { option ->
-                    log.push(rollOption(engine, option, variables, profile, defense).line)
-                })
-            }
-            if (profile.usesSpells) item {
-                SpellsSection(sheet, prefs, onChange, onCast = { spell ->
-                    val outcome = castSpell(engine, spell, sheet, profile)
-                    log.push(outcome.line)
-                    if (outcome.cast) onChange(outcome.sheet)
-                })
-            }
-            if (profile.usesInventory) item { InventorySection(sheet, prefs, onChange) }
-            item {
-                DefensesSection(
-                    defenses = sheet.defenses, conditionImmunities = sheet.conditionImmunities,
-                    onDefensesChange = { onChange(sheet.copy(defenses = it)) },
-                    onConditionsChange = { onChange(sheet.copy(conditionImmunities = it)) }
-                )
-            }
-            item { ProficienciesSection(sheet, onChange) }
-            item { BackstorySection(sheet, onChange) }
-            item {
-                CollapsibleSection("ANOTAÇÕES", summary = sheet.notes.lineSequence().firstOrNull().orEmpty(), startExpanded = false) {
-                    TextInput("História, aliados, objetivos…", sheet.notes, { onChange(sheet.copy(notes = it)) }, singleLine = false, minLines = 5)
+            when (tab) {
+                "Ficha" -> {
+                    item { ResourcesSection(sheet, profile, onChange) }
+                    item {
+                        CollapsibleSection("ATRIBUTOS", summary = "${profile.attributes.size} atributos") {
+                            AttributeGrid(
+                                profile, sheet.attributes,
+                                onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) }
+                            ) { key, value ->
+                                onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                            }
+                        }
+                    }
+                    if (profile.usesProficiency && !profile.isPool) item {
+                        SavesSection(sheet, profile, onChange, onRoll = { attr -> log.push(rollSaveCheck(engine, sheet, profile, attr)) })
+                    }
+                    if (profile.usesSkills) item {
+                        SkillsSection(sheet, profile, onChange, onRoll = { skill -> log.push(rollSkillCheck(engine, sheet, profile, skill)) })
+                    }
+                    if (profile.usesTraits) item { TraitsSection(sheet, profile, prefs, onChange) }
+                }
+                "Combate" -> {
+                    item { RollPanel(sheet, profile, prefs, engine, variables, targetDefense, { targetDefense = it }, log) }
+                    if (profile.usesAttacks) item {
+                        AttacksSection(sheet, library, onChange, onRoll = { option ->
+                            log.push(rollOption(engine, option, variables, profile, defense).line)
+                        })
+                    }
+                    if (profile.usesSpells) item {
+                        SpellsSection(sheet, prefs, onChange, onCast = { spell ->
+                            val outcome = castSpell(engine, spell, sheet, profile)
+                            log.push(outcome.line)
+                            if (outcome.cast) onChange(outcome.sheet)
+                        })
+                    }
+                    item {
+                        DefensesSection(
+                            defenses = sheet.defenses, conditionImmunities = sheet.conditionImmunities,
+                            onDefensesChange = { onChange(sheet.copy(defenses = it)) },
+                            onConditionsChange = { onChange(sheet.copy(conditionImmunities = it)) }
+                        )
+                    }
+                }
+                "Itens" -> {
+                    item { InventorySection(sheet, prefs, onChange) }
+                }
+                else -> {
+                    item { IdentitySection(sheet, profile, prefs, onChange) }
+                    item { AppearanceSection(sheet, onChange) }
+                    item { ProficienciesSection(sheet, onChange) }
+                    item { BackstorySection(sheet, onChange) }
+                    item {
+                        CollapsibleSection("ANOTAÇÕES", summary = sheet.notes.lineSequence().firstOrNull().orEmpty(), startExpanded = false) {
+                            TextInput("História, aliados, objetivos…", sheet.notes, { onChange(sheet.copy(notes = it)) }, singleLine = false, minLines = 5)
+                        }
+                    }
                 }
             }
         }
         RollLogBar(log) { log.clear() }
+    }
+}
+
+/** Avatar do personagem: retrato da galeria, se houver; senão o pixel art; senão um convite para criar o visual. */
+@Composable
+private fun HeaderAvatar(sheet: CharacterSheet, size: Dp, onClick: () -> Unit) {
+    Box(Modifier.size(size).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        when {
+            sheet.imageUri.isNotBlank() -> Portrait(sheet.imageUri, sheet.name, size)
+            sheet.look.configured -> AvatarView(sheet.look, size)
+            else -> Box(Modifier.fillMaxSize().background(Panel2), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Person, "Criar visual do personagem", tint = Muted, modifier = Modifier.size(size / 2))
+            }
+        }
+    }
+}
+
+/** Cabeçalho da ficha: avatar grande, nome e o que mais se usa na mesa (PV, CA e iniciativa). */
+@Composable
+private fun SheetHeader(
+    sheet: CharacterSheet,
+    profile: SystemProfile,
+    armorClass: Int,
+    onOpenProfile: () -> Unit,
+    onChange: (CharacterSheet) -> Unit,
+    onInitiative: () -> Unit
+) {
+    val vital = profile.resources.firstOrNull()
+    val value = vital?.let { sheet.resources[it.key] ?: ResourceValue(it.defaultMax, it.defaultMax) }
+    fun setVital(next: ResourceValue) {
+        if (vital != null) onChange(sheet.copy(resources = sheet.resources + (vital.key to next)))
+    }
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, Hairline)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Brand.copy(alpha = .16f), Panel))).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                HeaderAvatar(sheet, 88.dp, onOpenProfile)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(sheet.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                    val subtitle = listOf(sheet.concept, sheet.origin, if (profile.usesLevels) "Nível ${sheet.level}" else "")
+                        .filter { it.isNotBlank() }.joinToString(" • ")
+                    if (subtitle.isNotBlank()) Text(subtitle, color = Accent, fontSize = 13.sp)
+                    if (sheet.conditions.isNotEmpty()) Text(sheet.conditions.joinToString(", "), color = Muted, fontSize = 13.sp, maxLines = 1)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (vital != null && value != null) {
+                    Surface(color = Panel2, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(2.3f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
+                            IconButton(onClick = { setVital(value.copy(current = (value.current - 1).coerceAtLeast(0))) }, modifier = Modifier.size(38.dp)) {
+                                Icon(Icons.Default.Remove, "Diminuir ${vital.label}", tint = Accent)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(shortResourceLabel(vital), color = Muted, fontSize = 11.sp)
+                                Text("${value.current}/${value.max}", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+                            IconButton(onClick = { setVital(value.copy(current = (value.current + 1).coerceAtMost(value.max))) }, modifier = Modifier.size(38.dp)) {
+                                Icon(Icons.Default.Add, "Aumentar ${vital.label}", tint = Accent)
+                            }
+                        }
+                    }
+                }
+                if (profile.usesArmorClass) {
+                    Surface(color = Panel2, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("CA", color = Muted, fontSize = 11.sp)
+                            Text("$armorClass", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Surface(color = Brand.copy(alpha = .2f), shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1.2f).clickable(onClick = onInitiative)) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Casino, "Rolar iniciativa", tint = Accent, modifier = Modifier.size(20.dp))
+                        Text("Iniciativa", color = Ink, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Versão compacta do cabeçalho, presa ao topo enquanto se rola a ficha. */
+@Composable
+private fun MiniHeader(sheet: CharacterSheet, profile: SystemProfile, armorClass: Int, onOpenProfile: () -> Unit) {
+    val vital = profile.resources.firstOrNull()
+    val value = vital?.let { sheet.resources[it.key] ?: ResourceValue(it.defaultMax, it.defaultMax) }
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        HeaderAvatar(sheet, 36.dp, onOpenProfile)
+        Text(sheet.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+        if (vital != null && value != null) InfoPill("${shortResourceLabel(vital)} ${value.current}/${value.max}")
+        if (profile.usesArmorClass) InfoPill("CA $armorClass")
     }
 }
 
@@ -355,7 +513,7 @@ private fun RollPanel(
             if (profile.usesArmorClass) "CA do alvo nos ataques (0 = sem alvo)" else "Defesa do alvo nos ataques (0 = sem alvo)",
             targetDefense, { onDefense(it.coerceAtLeast(0)) }, Modifier.fillMaxWidth()
         )
-        Text("Use na fórmula: ${names.joinToString(", ")} e o nome de cada perícia (ex.: ATLETISMO).", color = Muted, fontSize = 12.sp)
+        Text("Use na fórmula: ${names.joinToString(", ")} e o nome de cada perícia (ex.: ATLETISMO).", color = Muted, fontSize = 13.sp)
     }
 }
 
@@ -368,13 +526,15 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
         TextInput("Nome", sheet.name, { onChange(sheet.copy(name = it)) })
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Sistema", color = Muted, fontSize = 12.sp)
+                Text("Sistema", color = Muted, fontSize = 13.sp)
                 Text(systemDisplayName(prefs, sheet.systemId), color = Ink, fontWeight = FontWeight.SemiBold)
             }
             TextButton(onClick = { switching = true }) { Text("Trocar sistema") }
         }
-        TextInput(profile.conceptLabel, sheet.concept, { onChange(sheet.copy(concept = it)) })
-        TextInput(profile.originLabel, sheet.origin, { onChange(sheet.copy(origin = it)) })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextInput(profile.conceptLabel, sheet.concept, { onChange(sheet.copy(concept = it)) }, Modifier.weight(1f))
+            TextInput(profile.originLabel, sheet.origin, { onChange(sheet.copy(origin = it)) }, Modifier.weight(1f))
+        }
         if (profile.usesLevels || profile.usesProficiency || profile.usesArmorClass) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (profile.usesLevels) {
@@ -395,7 +555,7 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextInput("Deslocamento", sheet.speed, { onChange(sheet.copy(speed = it)) }, Modifier.weight(1f))
+            TextInput("Desloc.", sheet.speed, { onChange(sheet.copy(speed = it)) }, Modifier.weight(1f))
             if (profile.usesLevels) {
                 NumberField("XP", sheet.experience, { onChange(sheet.copy(experience = it.coerceAtLeast(0))) }, Modifier.weight(1f))
             }
@@ -471,7 +631,7 @@ private fun SkillsSection(
                     Text(skill.name, color = Ink, fontSize = 14.sp)
                     if (attr != null || profile.isPool) {
                         val pool = if (profile.isPool) "reserva ${skillPoolSize(profile, sheet.attributes, skill)}" else ""
-                        Text(listOfNotNull(attr?.abbr, pool.ifBlank { null }).joinToString(" • "), color = Muted, fontSize = 12.sp)
+                        Text(listOfNotNull(attr?.abbr, pool.ifBlank { null }).joinToString(" • "), color = Muted, fontSize = 13.sp)
                     }
                 }
                 if (profile.usesProficiency) {
@@ -618,7 +778,7 @@ private fun AttacksSection(
                 Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(option.label, color = Ink, fontSize = 14.sp)
-                        Text(listOf(option.bonus, option.damage).filter { it.isNotBlank() }.joinToString(" • "), color = Muted, fontSize = 12.sp)
+                        Text(listOf(option.bonus, option.damage).filter { it.isNotBlank() }.joinToString(" • "), color = Muted, fontSize = 13.sp)
                     }
                     IconButton(onClick = { onRoll(option) }) { Icon(Icons.Default.Casino, "Rolar ${option.label}", tint = Accent) }
                 }
@@ -649,7 +809,7 @@ private fun SpellsSection(
                 Column(Modifier.weight(1f)) {
                     Text(spell.name, color = Ink, fontSize = 14.sp)
                     Text(listOf(spellLevelLabel(spell.level), spell.school, spell.damage, spell.cost.takeIf { it.isNotBlank() }?.let { "custo $it" })
-                        .filter { !it.isNullOrBlank() }.joinToString(" • "), color = Muted, fontSize = 12.sp)
+                        .filter { !it.isNullOrBlank() }.joinToString(" • "), color = Muted, fontSize = 13.sp)
                 }
                 TextButton(onClick = { onCast(spell) }) { Icon(Icons.Default.Casino, null); Spacer(Modifier.width(4.dp)); Text("Conjurar") }
                 IconButton(onClick = { onChange(sheet.copy(spellIds = sheet.spellIds - spell.id)) }) {
@@ -720,7 +880,7 @@ private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, on
                                 color = if (item != null) Ink else Muted, fontSize = 14.sp)
                             val detail = if (item == null) "" else listOf(item.type, item.bonus, item.damage)
                                 .filter { it.isNotBlank() }.joinToString(" • ")
-                            if (detail.isNotBlank()) Text(detail, color = Muted, fontSize = 12.sp)
+                            if (detail.isNotBlank()) Text(detail, color = Muted, fontSize = 13.sp)
                         }
                         IconButton(onClick = { onChange(sheet.copy(inventory = sheet.inventory.without(index))) }) {
                             Icon(Icons.Default.Close, "Remover do inventário", tint = Muted)
@@ -736,7 +896,7 @@ private fun InventorySection(sheet: CharacterSheet, prefs: SharedPreferences, on
                         }
                         Spacer(Modifier.weight(1f))
                         if (item != null && item.weight > 0.0) {
-                            Text("${formatWeight(item.weight * entry.quantity)} kg", color = Muted, fontSize = 12.sp,
+                            Text("${formatWeight(item.weight * entry.quantity)} kg", color = Muted, fontSize = 13.sp,
                                 modifier = Modifier.padding(end = 10.dp))
                         }
                     }

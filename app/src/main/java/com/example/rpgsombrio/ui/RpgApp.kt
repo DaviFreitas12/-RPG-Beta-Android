@@ -13,8 +13,10 @@ import com.example.rpgsombrio.ui.bestiary.BestiaryScreen
 import com.example.rpgsombrio.ui.campaign.CampaignScreen
 import com.example.rpgsombrio.ui.characters.CharacterSheetsScreen
 import com.example.rpgsombrio.ui.combat.RpgEngineScreen
+import com.example.rpgsombrio.ui.home.HomeScreen
 import com.example.rpgsombrio.ui.items.ItemsScreen
 import com.example.rpgsombrio.ui.library.LibraryHubScreen
+import com.example.rpgsombrio.ui.settings.SettingsScreen
 import com.example.rpgsombrio.ui.spellbook.SpellbookScreen
 import com.example.rpgsombrio.ui.systems.SystemsScreen
 import com.example.rpgsombrio.ui.theme.Accent
@@ -26,33 +28,37 @@ import com.example.rpgsombrio.ui.theme.RpgTheme
 import com.example.rpgsombrio.ui.traits.TraitsScreen
 
 private val LIBRARY_PAGES = listOf("Bestiário", "Grimório", "Itens", "Traços")
+private val HOME_PAGES = listOf("Campanha", "Configurações")
 
 @Composable
 internal fun RpgApp() {
-    var selected by rememberSaveable { mutableStateOf("Campanha") }
+    var selected by rememberSaveable { mutableStateOf("Início") }
     BackHandler(enabled = selected in LIBRARY_PAGES) { selected = "Biblioteca" }
+    BackHandler(enabled = selected in HOME_PAGES) { selected = "Início" }
     RpgTheme {
         Scaffold(
             containerColor = Night,
             bottomBar = {
                 NavigationBar(containerColor = Panel) {
-                    // Cinco destinos principais evitam que os itens fiquem cortados em celulares estreitos.
+                    // Cinco destinos principais. Rótulos curtos (até 8 letras) para não cortar em telas estreitas;
+                    // a rota (primeiro item) continua sendo o nome interno de cada tela.
                     val tabs = listOf(
-                        "Campanha" to Icons.Default.Home,
-                        "Personagens" to Icons.Default.Person,
-                        "Motor" to Icons.Default.Casino,
-                        "Biblioteca" to Icons.Default.MenuBook,
-                        "Sistemas" to Icons.Default.Tune
+                        Triple("Início", "Início", Icons.Default.Home),
+                        Triple("Personagens", "Fichas", Icons.Default.Person),
+                        Triple("Motor", "Dados", Icons.Default.Casino),
+                        Triple("Biblioteca", "Acervo", Icons.Default.MenuBook),
+                        Triple("Sistemas", "Sistemas", Icons.Default.Tune)
                     )
-                    tabs.forEach { (label, icon) ->
+                    tabs.forEach { (route, label, icon) ->
                         NavigationBarItem(
-                            selected = selected == label || (label == "Biblioteca" && selected in LIBRARY_PAGES),
-                            onClick = { selected = label },
+                            selected = selected == route || (route == "Biblioteca" && selected in LIBRARY_PAGES) || (route == "Início" && selected in HOME_PAGES),
+                            onClick = { selected = route },
                             icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label, fontSize = 11.sp, maxLines = 1) },
+                            label = { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                            alwaysShowLabel = true,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Accent, selectedTextColor = Accent,
-                                indicatorColor = Brand.copy(alpha = .4f),
+                                indicatorColor = Brand.copy(alpha = .2f),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -62,7 +68,9 @@ internal fun RpgApp() {
             }
         ) { padding ->
             when (selected) {
+                "Início" -> HomeScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Campanha" -> CampaignScreen(Modifier.padding(padding), onNavigate = { selected = it })
+                "Configurações" -> SettingsScreen(Modifier.padding(padding))
                 "Personagens" -> CharacterSheetsScreen(Modifier.padding(padding))
                 "Sistemas" -> SystemsScreen(Modifier.padding(padding))
                 "Motor" -> RpgEngineScreen(Modifier.padding(padding))

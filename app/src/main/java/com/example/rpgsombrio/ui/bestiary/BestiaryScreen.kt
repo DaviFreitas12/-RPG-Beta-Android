@@ -219,7 +219,7 @@ private fun MonsterEditor(
                     TextInput("Nome", monster.name, { onChange(monster.copy(name = it)) })
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Sistema", color = Muted, fontSize = 12.sp)
+                            Text("Sistema", color = Muted, fontSize = 13.sp)
                             Text(systemDisplayName(prefs, monster.systemId), color = Ink, fontWeight = FontWeight.SemiBold)
                         }
                         TextButton(onClick = { switching = true }) { Text("Trocar sistema") }
@@ -264,7 +264,7 @@ private fun MonsterEditor(
                         targetDefense, { targetDefense = it.coerceAtLeast(0) }, Modifier.fillMaxWidth()
                     )
                     Text("Cada ação com \"+N para acertar\" ou \"Dano: XdY\" no texto ganha um botão de rolar. Cada cópia no combate rola os próprios $hpLabel e iniciativa.",
-                        color = Muted, fontSize = 12.sp)
+                        color = Muted, fontSize = 13.sp)
                 }
             }
             item {

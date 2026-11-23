@@ -174,7 +174,7 @@ private fun ItemEditor(
         item {
             CollapsibleSection("IDENTIDADE", summary = listOf(entry.name, entry.type).filter { it.isNotBlank() }.joinToString(" • ")) {
                 TextInput("Nome", entry.name, { onChange(entry.copy(name = it)) })
-                Text("Tipo", color = Muted, fontSize = 12.sp)
+                Text("Tipo", color = Muted, fontSize = 13.sp)
                 ChipFilterRow(ITEM_TYPES, entry.type) { onChange(entry.copy(type = it)) }
                 TextInput("Tipo (livre)", entry.type, { onChange(entry.copy(type = it)) })
                 TextInput("Raridade", entry.rarity, { onChange(entry.copy(rarity = it)) })

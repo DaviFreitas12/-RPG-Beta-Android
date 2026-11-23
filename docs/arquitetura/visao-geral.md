@@ -9,7 +9,7 @@ Aplicativo Android para campanhas de RPG de mesa. Mestre e jogadores usam celula
 - Modelos de campanha, configurações de regras, definições de atributos/recursos/dados e campos personalizados.
 - Projeto Android inicial em Kotlin + Jetpack Compose.
 - Navegação visual entre Campanha, Personagens, Bestiário, Grimório e Itens.
-- Identidade visual escura e brasão RPG em `app/src/main/res/drawable-nodpi/rpg_crest.png`.
+- Identidade visual neutra, com modo claro e escuro (ver `ui/theme/Theme.kt`).
 - Modelos Kotlin iniciais para atributos, personagens, monstros, magias, itens e membros.
 - Nome de aplicativo configurado como RPG.
 

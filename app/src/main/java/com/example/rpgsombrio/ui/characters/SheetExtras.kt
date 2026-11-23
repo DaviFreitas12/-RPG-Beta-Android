@@ -176,7 +176,7 @@ internal fun ConditionsDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 NumberField("Duração ao marcar (rodadas, 0 = até remover)", rounds, { rounds = it.coerceIn(0, 999) }, Modifier.fillMaxWidth())
-                Text("A contagem desce ao fim de cada turno de quem está afetado.", color = Muted, fontSize = 11.sp)
+                Text("A contagem desce ao fim de cada turno de quem está afetado.", color = Muted, fontSize = 13.sp)
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     items(CONDITION_SUGGESTIONS) { c ->
                         val on = c in fighter.conditions
@@ -193,7 +193,7 @@ internal fun ConditionsDialog(
                             Column(Modifier.padding(vertical = 4.dp)) {
                                 val label = if (immune) "$c (imune)" else if (on) fighter.conditionLabel(c) else c
                                 Text("${conditionEmoji(c)} $label", color = if (allowed) Ink else Muted)
-                                Text(conditionSummary(c), color = Muted, fontSize = 11.sp)
+                                Text(conditionSummary(c), color = Muted, fontSize = 13.sp)
                             }
                         }
                     }

@@ -13,10 +13,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rpgsombrio.ui.components.QuickCard
 import com.example.rpgsombrio.ui.theme.Accent
+import com.example.rpgsombrio.ui.theme.Amber
+import com.example.rpgsombrio.ui.theme.Coral
 import com.example.rpgsombrio.ui.theme.Hairline
 import com.example.rpgsombrio.ui.theme.Ink
 import com.example.rpgsombrio.ui.theme.Muted
 import com.example.rpgsombrio.ui.theme.Panel2
+import com.example.rpgsombrio.ui.theme.Rose
+import com.example.rpgsombrio.ui.theme.Violet
 
 @Composable
 internal fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String) -> Unit) {
@@ -26,21 +30,13 @@ internal fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("ARQUIVOS DA MESA", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text("Biblioteca", color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Bold)
-            Text("Conteúdos reutilizáveis da campanha, organizados em um só lugar.", color = Muted, fontSize = 12.sp)
+            Text("CONTEÚDO DA MESA", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Text("Acervo", color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Bold)
+            Text("Criaturas, magias, itens e traços da sua mesa.", color = Muted, fontSize = 13.sp)
         }
-        item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças") { onNavigate("Bestiário") } }
-        item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos") { onNavigate("Grimório") } }
-        item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros") { onNavigate("Itens") } }
-        item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema") { onNavigate("Traços") } }
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel2), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Hairline)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("LIGADO AO MOTOR", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text("Criaturas rolam ações e entram no combate com PV e iniciativa próprios; magias rolam o efeito e debitam o custo na ficha; itens equipados com dano viram ataques. Próximo passo: itens equipados alterarem atributos e CA.", color = Ink, fontSize = 12.sp)
-                }
-            }
-        }
+        item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças", Coral) { onNavigate("Bestiário") } }
+        item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos", Violet) { onNavigate("Grimório") } }
+        item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros", Amber) { onNavigate("Itens") } }
+        item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema", Rose) { onNavigate("Traços") } }
     }
 }
