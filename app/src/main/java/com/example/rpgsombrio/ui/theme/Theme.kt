@@ -72,16 +72,14 @@ internal val Danger: Color get() = pick(0xFFD1324A, 0xFFFF6B7A)       // dano e 
 internal val Hairline: Color get() = pick(0x1A000000, 0x1FFFFFFF)     // contornos discretos
 internal val OutlineColor: Color get() = pick(0xFFC4C8CF, 0xFF3A3F47) // bordas de campos
 
-// Cores de apoio: estados do jogo e categorias (cada tipo de conteúdo tem a sua).
+// Cores de apoio. Estados: Good (ok), Warn (atenção), Danger (dano). Categorias do Acervo: Coral, Violet, Amber, Sky.
+// O vermelho fica reservado para dano e perigo; nenhuma categoria usa tons próximos dele.
 internal val Good: Color get() = pick(0xFF15803D, 0xFF4ADE80)
 internal val Warn: Color get() = pick(0xFFB45309, 0xFFFACC15)
-internal val Gold: Color get() = pick(0xFFB7791F, 0xFFFFC857)
 internal val Sky: Color get() = pick(0xFF2563EB, 0xFF7AB6FF)
 internal val Violet: Color get() = pick(0xFF7C3AED, 0xFFB79CFF)
-internal val Coral: Color get() = pick(0xFFDC4A2D, 0xFFFF8A75)
+internal val Coral: Color get() = pick(0xFFD9622B, 0xFFFF9A6B)
 internal val Amber: Color get() = pick(0xFFB86E00, 0xFFFFC857)
-internal val Mint: Color get() = pick(0xFF15803D, 0xFF4ADE80)
-internal val Rose: Color get() = pick(0xFFDB2777, 0xFFFF7EB6)
 
 /**
  * O Material usa alturas de linha fixas (24sp no corpo), que ficam enormes quando o texto

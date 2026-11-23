@@ -1,13 +1,13 @@
 # Pendências e roadmap
 
-> Análise feita sobre a 0.9.2 e atualizada na 0.9.3. Itens riscados já foram resolvidos.
+> Análise feita sobre a 0.9.2, atualizada na 0.9.3 e revisada na 0.9.7. Itens riscados já foram resolvidos.
 
-Feita lendo o código e os documentos do projeto e rodando a lógica pura (126 testes passando). Cada item abaixo foi conferido no código, não deduzido dos changelogs.
+Feita lendo o código e os documentos do projeto e rodando a lógica pura (126 testes passando na análise da 0.9.3; não foram reexecutados na revisão da 0.9.7). Cada item abaixo foi conferido no código, não deduzido dos changelogs.
 
 ## 1. Antes de tudo: compilar a interface
-A lógica pura é testada, mas **nenhuma tela da 0.9.2 foi compilada** (`BattleArena.kt`, `EngineScreen.kt`, `SheetExtras.kt`, `SavePanel.kt`). Primeiro passo: `gradle assembleDebug`, abrir o Motor e passar por: adicionar combatentes → atacar → salvaguarda com condição → "Próximo turno" até a condição expirar.
+A lógica pura é testada, mas **a interface não foi compilada nesta análise**: a revisão da 0.9.7 só conferiu arquivos, imports, versão e ligação da navegação. Vale compilar principalmente as telas mais mexidas desde a 0.9.2 (`CharacterSheetScreen.kt` com as abas, `EngineScreen.kt`, `BattleArena.kt`, `SheetExtras.kt`, `SavePanel.kt`, `HomeScreen.kt`, `SettingsScreen.kt`). Primeiro passo: `gradle assembleDebug`, abrir o Motor e passar por: adicionar combatentes → atacar → salvaguarda com condição → "Próximo turno" até a condição expirar.
 - O projeto **não tem Gradle Wrapper** (`gradlew` e a pasta `gradle/` não existem). O CI usa o Gradle instalado na máquina; gere o wrapper (`gradle wrapper --gradle-version 8.9`) para a build ser reproduzível.
-- ~~`build.gradle.kts` com versão desatualizada~~ — resolvido: versão 0.9.3 (código 13).
+- ~~`build.gradle.kts` com versão desatualizada~~ — resolvido: versão 0.9.7 (código 17), igual ao README.
 
 ## 2. Higiene do repositório
 ~~Resolvido na 0.9.3~~: `google-services.json` e os arquivos `.backup` foram removidos e o `.gitignore` agora cobre `google-services.json` em qualquer pasta. **Ainda vale** restringir/rotacionar a chave de API no console do Firebase (o arquivo está no histórico do git).
@@ -25,6 +25,9 @@ Em ordem do que mais aparece numa mesa:
 10. As regras de condição seguem o D&D 5e. Em outros sistemas (Vampiro e sistemas próprios) a tabela de condições não é editável.
 
 ## 4. Ficha e dados
+- Atributos novos por ficha: hoje a ficha só **esconde/mostra** os atributos do sistema (Escolher atributos). Criar um atributo só para um personagem exige um modelo novo (atributos próprios na ficha, ligados às fórmulas) e ainda não existe.
+- A criação de ficha ainda não tem teste de interface, nem de gravação/leitura do visual (o `org.json` não roda em teste de unidade comum) nem da chave do avatar (fica em arquivo Compose).
+- O app não tem papéis (mestre e jogador): qualquer pessoa que abre o app edita tudo. É o ponto mais distante do objetivo de mesa compartilhada.
 - Inspiração existe como marcador e não é usada.
 - Não existe **exportar/importar** (backup em arquivo). Tudo mora em `SharedPreferences` como JSON; reinstalar sem o backup automático do Android perde as campanhas. É a proteção mais barata que falta antes de qualquer beta com jogadores.
 - `SharedPreferences` com todas as fichas em uma única string não escala bem; o plano já prevê Room.

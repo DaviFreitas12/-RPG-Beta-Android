@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.ui.bestiary
 
+import com.example.rpgsombrio.ui.components.EmptyState
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
@@ -143,7 +144,7 @@ internal fun BestiaryScreen(modifier: Modifier = Modifier) {
             if (systemOptionsList.size > 2) item { ChipFilterRow(systemOptionsList, sysFilter) { systemFilter = it } }
             if (typeOptions.size > 2) item { ChipFilterRow(typeOptions, filter) { typeFilter = it } }
             if (filtered.isEmpty()) item {
-                EmptyHint(if (query.isBlank() && filter == "Todos" && sysFilter == ALL_SYSTEMS) "Nenhuma criatura ainda. Toque em Nova criatura." else "Nenhum resultado.")
+                if (query.isBlank() && filter == "Todos" && sysFilter == ALL_SYSTEMS) EmptyState("criatura", "Nenhuma criatura ainda", "Toque em Nova criatura para montar monstros e aliados.") else EmptyHint("Nenhum resultado.")
             }
             items(filtered, key = { it.id }) { monster -> MonsterCard(monster, prefs) { openId = monster.id } }
         }
@@ -256,7 +257,7 @@ private fun MonsterEditor(
                         Button(onClick = {
                             val added = List(quantity) { i -> monsterCombatant(engine, monster, profile, if (quantity > 1) i + 1 else null) }
                             CombatStore.add(prefs, *added.toTypedArray())
-                            log.push(RollLine("${added.size} × ${monster.name.ifBlank { "Criatura" }} no combate. Veja na aba Motor.", true))
+                            log.push(RollLine("${added.size} × ${monster.name.ifBlank { "Criatura" }} no combate. Veja na aba Dados.", true))
                         }, colors = ButtonDefaults.buttonColors(containerColor = Brand)) { Text("Ao combate") }
                     }
                     NumberField(

@@ -36,6 +36,7 @@ import com.example.rpgsombrio.data.ResourceValue
 import com.example.rpgsombrio.data.SheetAttr
 import com.example.rpgsombrio.data.SystemProfile
 import com.example.rpgsombrio.data.immuneToCondition
+import com.example.rpgsombrio.data.visibleAttributes
 import com.example.rpgsombrio.engine.Combatant
 import com.example.rpgsombrio.engine.conditionEmoji
 import com.example.rpgsombrio.engine.conditionLabel
@@ -59,7 +60,7 @@ internal fun SavesSection(
     sheet: CharacterSheet, profile: SystemProfile,
     onChange: (CharacterSheet) -> Unit, onRoll: (SheetAttr) -> Unit
 ) {
-    val attrs = profile.attributes.filter { it.hasModifier }
+    val attrs = profile.visibleAttributes(sheet).filter { it.hasModifier }
     val summary = attrs.filter { it.key in sheet.saveProficiencies }.joinToString(", ") { it.abbr }
         .ifBlank { "Sem proficiências" }
     CollapsibleSection("SALVAGUARDAS", summary = summary, startExpanded = false) {
@@ -97,17 +98,49 @@ private fun CountBoxes(label: String, count: Int, onCount: (Int) -> Unit) {
     }
 }
 
+/** Escolhe quais atributos do sistema aparecem nesta ficha. Os escondidos continuam valendo nas fórmulas. */
+@Composable
+internal fun SheetAttributeChooser(sheet: CharacterSheet, profile: SystemProfile, onChange: (CharacterSheet) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    if (profile.attributes.size >= 2) {
+        TextButton(onClick = { open = !open }) { Text(if (open) "Fechar seleção" else "Escolher atributos") }
+        if (open) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(profile.attributes) { attr ->
+                    val shown = attr.key !in sheet.hiddenAttributes
+                    FilterChip(
+                        selected = shown,
+                        onClick = {
+                            onChange(sheet.copy(hiddenAttributes = if (shown) sheet.hiddenAttributes + attr.key else sheet.hiddenAttributes - attr.key))
+                        },
+                        label = { Text(attr.abbr) }
+                    )
+                }
+            }
+            Text("Atributos desmarcados saem da ficha, mas seus valores continuam valendo nas fórmulas e rolagens.", color = Muted, fontSize = 12.sp)
+        }
+    }
+}
+
 /** Extras dentro de RECURSOS: PV temporários, inspiração, salvaguardas contra a morte (só com PV em 0) e condições. */
 @Composable
 internal fun VitalsExtras(sheet: CharacterSheet, profile: SystemProfile, onChange: (CharacterSheet) -> Unit) {
     val hp = primaryResource(profile)?.let { sheet.resources[it.key] ?: ResourceValue(it.defaultMax, it.defaultMax) }
-    if (profile.autoProficiency) {
+    // PV temporários servem a qualquer sistema com pontos de vida; inspiração e salvaguardas contra a morte são regras do estilo D&D.
+    val tempHpAvailable = hp != null && !profile.isPool
+    if (tempHpAvailable || profile.autoProficiency) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NumberField("PV temporários", sheet.tempHp, { onChange(sheet.copy(tempHp = it.coerceAtLeast(0))) }, Modifier.weight(1f))
-            Column(Modifier.weight(1f)) {
-                ToggleRow("Inspiração", sheet.inspiration) { onChange(sheet.copy(inspiration = it)) }
+            if (tempHpAvailable) {
+                NumberField("PV temporários", sheet.tempHp, { onChange(sheet.copy(tempHp = it.coerceAtLeast(0))) }, Modifier.weight(1f))
+            }
+            if (profile.autoProficiency) {
+                Column(Modifier.weight(1f)) {
+                    ToggleRow("Inspiração", sheet.inspiration) { onChange(sheet.copy(inspiration = it)) }
+                }
             }
         }
+    }
+    if (profile.autoProficiency) {
         if (hp != null && hp.max > 0 && hp.current == 0) {
             Text("Salvaguardas contra a morte", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             CountBoxes("Sucessos", sheet.deathSuccesses) { onChange(sheet.copy(deathSuccesses = it)) }

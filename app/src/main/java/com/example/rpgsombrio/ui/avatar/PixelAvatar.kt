@@ -28,7 +28,7 @@ internal val SKIN_PALETTE = listOf(
 )
 internal val HAIR_PALETTE = listOf(
     rgb(27, 27, 31), rgb(74, 47, 27), rgb(181, 101, 29), rgb(227, 193, 111), rgb(201, 204, 214),
-    rgb(244, 244, 244), rgb(91, 58, 140), rgb(46, 111, 94), rgb(160, 40, 40), rgb(60, 120, 200)
+    rgb(244, 244, 244), rgb(91, 58, 140), rgb(46, 111, 94), rgb(160, 40, 40), rgb(60, 120, 200), rgb(120, 130, 145), rgb(190, 150, 110), rgb(35, 75, 55), rgb(210, 80, 120)
 )
 internal val EYE_PALETTE = listOf(
     rgb(59, 42, 26), rgb(46, 111, 208), rgb(46, 139, 87), rgb(138, 143, 153),
@@ -36,7 +36,7 @@ internal val EYE_PALETTE = listOf(
 )
 internal val CLOTH_PALETTE = listOf(
     rgb(122, 31, 43), rgb(45, 74, 122), rgb(47, 93, 58), rgb(58, 58, 68),
-    rgb(107, 78, 46), rgb(91, 58, 140), rgb(184, 137, 43), rgb(200, 200, 210)
+    rgb(107, 78, 46), rgb(91, 58, 140), rgb(184, 137, 43), rgb(200, 200, 210), rgb(36, 91, 91), rgb(218, 207, 177), rgb(35, 39, 58), rgb(92, 105, 54), rgb(115, 48, 65)
 )
 private val STEEL = rgb(168, 176, 194)
 private val GOLD = rgb(224, 184, 72)
@@ -103,7 +103,7 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     val tx0 = cx - tw / 2; val tx1 = cx + tw / 2
     val pants = rgb(62, 58, 76); val bootc = rgb(72, 50, 34)
     val o = L.outfit
-    val heavy = o == 1
+    val heavy = o in setOf(1, 5, 6, 10, 11, 12, 13, 14)
     val hs = L.hairStyle
 
     // --- camadas de trás: cauda, capa, cabelo comprido, capuz
@@ -118,11 +118,38 @@ internal fun buildSprite(L: CharacterLook): IntArray {
         val ln = if (L.cape == 1) tb + 4 else lb - 1
         g.rect(tx0 - 2, ty, tx1 + 2, ln, darkC(cloth, .15f))
     }
+    if (L.cape == 4) {
+        g.put(tx0 - 2, tb + 2, 0, 0); g.put(tx1 + 1, tb + 5, 0, 0)
+        g.put(tx0 - 1, lb - 2, 0, 0)
+    }
+    if (L.cape == 5) {
+        g.rect(tx0 - 2, ty, tx1 + 2, ty + 3, darkC(cloth, .12f))
+    }
     if (hs == 2) g.rect(x0 - 1, y0 + 2, x1 + 1, ty + 8, hair)
     if (hs == 5) g.rect(x1, y0 + 2, x1 + 2, y0 + 14, hair)
     if (hs == 6) {
         val m = g.newId()
         for ((i, yy) in (y0 + 3 until y0 + 17).withIndex()) g.rect(x0 - 2, yy, x0, yy + 1, if (i % 2 == 0) hair else hairD, m)
+    }
+    if (hs == 9 || hs == 14) {
+        val m = g.newId()
+        for (yy in y0 + 2 until ty + 8) {
+            val shift = if ((yy / 2) % 2 == 0) 0 else 1
+            g.rect(x0 - 1 + shift, yy, x0 + shift, yy + 1, if (yy % 3 == 0) hairD else hair, m)
+            g.rect(x1 - 1 - shift, yy, x1 - shift, yy + 1, if (yy % 3 == 0) hairD else hair, m)
+        }
+    }
+    if (hs == 11 || hs == 12) {
+        val m = g.newId()
+        val strands = if (hs == 11) listOf(x0 - 2, x0, x1 - 1, x1 + 1) else listOf(x0 - 2, x1 + 1)
+        strands.forEachIndexed { i, xx ->
+            for (yy in y0 + 3 until ty + 8 + (i % 2)) g.put(xx + ((yy / 3 + i) % 2), yy, if (yy % 4 == 0) hairD else hair, m)
+        }
+    }
+    if (hs == 10) {
+        g.ell(cx.toFloat(), (y0 + 1).toFloat(), hw / 2f + 3f, 4.5f, hair)
+        g.ell((cx - 4).toFloat(), (y0 + 3).toFloat(), 2.5f, 3f, hair)
+        g.ell((cx + 4).toFloat(), (y0 + 3).toFloat(), 2.5f, 3f, hair)
     }
     if (L.headgear == 1) g.ell(cx.toFloat(), (y0 + 5).toFloat(), hw / 2f + 1.5f, 7f, darkC(cloth, .2f))
 
@@ -135,8 +162,8 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     }
 
     // --- tronco, pescoço, braços e mãos
-    val body = when (o) { 1 -> STEEL; 3 -> LEATHER; else -> cloth }
-    val sleeve = if (o == 1) STEEL else cloth
+    val body = when (o) { 1, 5, 6, 10, 11, 12, 13, 14 -> STEEL; 3, 7, 9, 18 -> LEATHER; else -> cloth }
+    val sleeve = if (heavy) STEEL else cloth
     when (o) {
         2 -> {
             g.rect(tx0, ty, tx1, lb + 1, body)
@@ -151,7 +178,7 @@ internal fun buildSprite(L: CharacterLook): IntArray {
         val ax = if (sd < 0) tx0 - 2 else tx1
         val padL = if (sd < 0) 1 else 0
         val padR = if (sd < 0) 0 else 1
-        g.rect(ax, ty, ax + 2, ty + 7, if (o == 3) cloth else sleeve)
+        g.rect(ax, ty, ax + 2, ty + 7, if (o == 3 || o == 18) cloth else sleeve)
         g.rect(ax, ty + 7, ax + 2, ty + 10, skin)
         if (o == 2) g.rect(ax - padL, ty + 5, ax + 2 + padR, ty + 8, sleeve)
         if (heavy) g.rect(ax - padL, ty, ax + 2 + padR, ty + 3, lightC(STEEL, .12f))
@@ -175,6 +202,118 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             g.line(tx1 - 1, ty, tx0, tb - 2, darkC(LEATHER, .45f), DETAIL)
             g.rect(tx0, tb - 3, tx1, tb - 2, darkC(LEATHER, .5f), DETAIL)
             g.put(cx - 1, ty, skin, DETAIL); g.put(cx, ty, skin, DETAIL)
+        }
+    }
+    // Modelos adicionais de vestuário: silhuetas e acabamentos próprios.
+    when (o) {
+        4 -> { // manto com gola e bordas largas
+            g.rect(tx0 - 1, ty + 2, tx0 + 1, tb + 2, darkC(cloth, .18f), DETAIL)
+            g.rect(tx1 - 1, ty + 2, tx1 + 1, tb + 2, lightC(cloth, .12f), DETAIL)
+            g.rect(cx - 1, ty, cx + 1, tb + 1, GOLD, DETAIL)
+        }
+        5 -> { // cota de malha
+            for (yy in ty + 2 until tb) for (xx in tx0 until tx1) if ((xx + yy) % 2 == 0) g.put(xx, yy, darkC(STEEL, .18f), DETAIL)
+            g.rect(tx0, tb - 2, tx1, tb - 1, STEEL, DETAIL)
+        }
+        6 -> { // armadura real
+            g.rect(tx0, ty + 1, tx1, ty + 3, GOLD, DETAIL)
+            g.rect(cx - 2, ty + 3, cx + 2, tb - 1, darkC(STEEL, .25f), DETAIL)
+            g.put(cx, ty + 5, rgb(170, 40, 55), DETAIL)
+        }
+        7 -> { // patrulheiro: couro, fivelas e faixa
+            g.line(tx0, ty + 1, tx1 - 1, tb - 1, darkC(LEATHER, .4f), DETAIL)
+            g.rect(tx0, tb - 3, tx1, tb - 2, rgb(74, 91, 48), DETAIL)
+            g.put(cx, tb - 3, GOLD, DETAIL)
+        }
+        8 -> { // traje arcano
+            g.rect(cx - 1, ty + 2, cx + 1, tb - 1, GOLD, DETAIL)
+            g.put(cx, ty + 5, rgb(100, 170, 220), DETAIL)
+            g.put(cx - 2, ty + 7, rgb(100, 170, 220), DETAIL); g.put(cx + 2, ty + 7, rgb(100, 170, 220), DETAIL)
+        }
+        9 -> { // viajante
+            g.rect(tx0, tb - 3, tx1, tb - 2, LEATHER, DETAIL)
+            g.rect(tx1 - 2, ty + 2, tx1, ty + 6, darkC(cloth, .3f), DETAIL)
+        }
+        10 -> { // armadura completa de placas
+            g.rect(tx0 - 2, ty, tx0 + 1, ty + 4, STEEL, DETAIL)
+            g.rect(tx1 - 1, ty, tx1 + 2, ty + 4, STEEL, DETAIL)
+            g.rect(tx0, ty + 2, tx1, tb - 1, lightC(STEEL, .08f), DETAIL)
+            g.rect(cx - 2, ty + 3, cx + 2, tb - 2, darkC(STEEL, .28f), DETAIL)
+            g.rect(tx0 - 1, tb - 1, tx1 + 1, tb + 1, GOLD, DETAIL)
+            g.put(cx, ty + 5, GOLD, DETAIL)
+        }
+        11 -> { // armadura de escamas sobre couro
+            for (yy in ty + 1 until tb) for (xx in tx0 until tx1) {
+                if ((xx + yy) % 2 == 0) g.put(xx, yy, lightC(STEEL, .05f), DETAIL)
+                else if ((xx + yy) % 3 == 0) g.put(xx, yy, darkC(STEEL, .2f), DETAIL)
+            }
+            g.rect(tx0 - 1, ty + 1, tx0 + 1, ty + 5, LEATHER, DETAIL)
+            g.rect(tx1 - 1, ty + 1, tx1 + 1, ty + 5, LEATHER, DETAIL)
+            g.rect(tx0, tb - 2, tx1, tb - 1, LEATHER, DETAIL)
+        }
+        12 -> { // brigandina: placas rebitadas em tecido grosso
+            g.rect(tx0, ty + 1, tx1, tb - 1, darkC(LEATHER, .12f), DETAIL)
+            for (yy in ty + 2 until tb - 1 step 2) for (xx in tx0 + 1 until tx1 step 2)
+                g.put(xx, yy, GOLD, DETAIL)
+            g.rect(cx - 1, ty + 1, cx + 1, tb - 2, STEEL, DETAIL)
+            g.rect(tx0 - 1, ty, tx0 + 1, ty + 3, STEEL, DETAIL)
+            g.rect(tx1 - 1, ty, tx1 + 1, ty + 3, STEEL, DETAIL)
+        }
+        13 -> { // cavaleiro negro: placas escuras e ombreiras angulares
+            val blackSteel = rgb(48, 51, 62)
+            g.rect(tx0 - 2, ty, tx0 + 2, ty + 4, blackSteel, DETAIL)
+            g.rect(tx1 - 2, ty, tx1 + 2, ty + 4, blackSteel, DETAIL)
+            g.rect(tx0, ty + 1, tx1, tb - 1, blackSteel, DETAIL)
+            g.rect(cx - 1, ty + 2, cx + 1, tb - 2, rgb(115, 35, 48), DETAIL)
+            g.rect(tx0, tb - 2, tx1, tb - 1, rgb(145, 38, 48), DETAIL)
+            g.put(cx, ty + 5, GOLD, DETAIL)
+        }
+        14 -> { // guarda real: aço claro, ombreiras douradas e faixa
+            g.rect(tx0 - 2, ty, tx0 + 1, ty + 3, GOLD, DETAIL)
+            g.rect(tx1 - 1, ty, tx1 + 2, ty + 3, GOLD, DETAIL)
+            g.rect(tx0, ty + 1, tx1, tb - 1, lightC(STEEL, .16f), DETAIL)
+            g.rect(tx0, tb - 3, tx1, tb - 2, rgb(150, 35, 48), DETAIL)
+            g.rect(cx - 1, ty + 2, cx + 1, tb - 2, GOLD, DETAIL)
+        }
+        15 -> { // guerreiro tribal: couro, peles e faixa de tecido
+            g.rect(tx0 - 1, ty, tx0 + 2, ty + 5, LEATHER, DETAIL)
+            g.rect(tx1 - 2, ty, tx1 + 1, ty + 5, LEATHER, DETAIL)
+            g.rect(tx0, ty + 1, tx1, tb - 1, darkC(LEATHER, .08f), DETAIL)
+            g.rect(tx0 - 1, ty, tx1 + 1, ty + 1, rgb(190, 175, 145), DETAIL)
+            g.rect(tx0, tb - 3, tx1, tb - 2, rgb(125, 48, 42), DETAIL)
+            g.line(tx0 + 1, ty + 2, tx1 - 1, tb - 3, GOLD, DETAIL)
+        }
+        16 -> { // necromante: manto sombrio com gola alta e sigilo
+            g.rect(tx0 - 2, ty, tx0 + 1, tb + 2, darkC(cloth, .38f), DETAIL)
+            g.rect(tx1 - 1, ty, tx1 + 2, tb + 2, darkC(cloth, .38f), DETAIL)
+            g.rect(cx - 2, ty - 1, cx + 2, ty + 3, rgb(48, 42, 66), DETAIL)
+            g.rect(cx - 1, ty + 3, cx + 1, tb, rgb(105, 65, 135), DETAIL)
+            g.put(cx, ty + 5, rgb(100, 205, 190), DETAIL)
+            g.rect(tx0 - 1, tb + 1, tx1 + 1, tb + 2, rgb(65, 48, 82), DETAIL)
+        }
+        17 -> { // clérigo: túnica clara, estola e símbolo sagrado
+            g.rect(tx0 - 1, ty + 1, tx0 + 1, tb + 1, lightC(cloth, .24f), DETAIL)
+            g.rect(tx1 - 1, ty + 1, tx1 + 1, tb + 1, lightC(cloth, .24f), DETAIL)
+            g.line(cx - 2, ty + 1, cx + 1, tb - 2, GOLD, DETAIL)
+            g.line(cx + 2, ty + 1, cx - 1, tb - 2, GOLD, DETAIL)
+            g.rect(tx0, tb - 2, tx1, tb - 1, GOLD, DETAIL)
+            g.put(cx, ty + 4, GOLD, DETAIL)
+        }
+        18 -> { // assassino: couro ajustado, capuz visual e faixas
+            g.rect(tx0 - 1, ty, tx0 + 1, tb, darkC(LEATHER, .25f), DETAIL)
+            g.rect(tx1 - 1, ty, tx1 + 1, tb, darkC(LEATHER, .25f), DETAIL)
+            g.line(tx0 + 1, ty + 1, tx1 - 1, tb - 1, rgb(95, 38, 48), DETAIL)
+            g.rect(tx0, tb - 3, tx1, tb - 2, rgb(95, 38, 48), DETAIL)
+            g.put(cx, tb - 3, GOLD, DETAIL)
+        }
+        19 -> { // nobre: casaco longo, gola e acabamento bordado
+            g.rect(tx0 - 1, ty, tx0 + 1, tb + 2, cloth, DETAIL)
+            g.rect(tx1 - 1, ty, tx1 + 1, tb + 2, cloth, DETAIL)
+            g.rect(cx - 1, ty, cx + 1, tb + 1, GOLD, DETAIL)
+            g.rect(tx0, ty + 2, tx0 + 1, tb, lightC(cloth, .24f), DETAIL)
+            g.rect(tx1 - 1, ty + 2, tx1, tb, lightC(cloth, .24f), DETAIL)
+            g.rect(tx0, tb - 2, tx1, tb - 1, GOLD, DETAIL)
+            g.put(cx, ty + 5, rgb(150, 35, 48), DETAIL)
         }
     }
     if (L.cape > 0) g.rect(cx - 2, ty, cx + 2, ty + 1, GOLD, DETAIL)
@@ -235,6 +374,19 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     }
     if (bd == 3) g.rect(cx - 3, y0 + 8, cx + 3, y0 + 9, hair)
     if (bd == 5) { g.rect(cx - 2, y1 - 3, cx + 2, y1, hair); g.rect(cx - 1, y1, cx + 1, y1 + 2, hair) }
+    if (bd == 6) {
+        g.rect(x0 + 1, jaw + 1, x0 + 3, y1 - 1, hair)
+        g.rect(x1 - 3, jaw + 1, x1 - 1, y1 - 1, hair)
+        g.rect(cx - 2, y1 - 1, cx + 2, y1, hair)
+    }
+    if (bd == 7) {
+        for (yy in jaw + 1 until y1) for (xx in x0 + 1 until x1 - 1) if ((xx * 3 + yy) % 3 != 0) g.put(xx, yy, hair, DETAIL)
+    }
+    if (bd == 8) {
+        g.rect(cx - 3, y0 + 8, cx + 3, y0 + 9, hair)
+        g.rect(cx - 2, y1 - 2, cx + 2, y1, hair)
+        g.rect(cx - 1, y1, cx + 1, y1 + 1, hair)
+    }
     // boca (e presas do orc)
     val my = y0 + 8; val mc = rgb(140, 50, 56)
     when (L.mouth) {
@@ -269,6 +421,25 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             g.put(xx, y0 - 2, hair, hm)
             if (xx % 4 == 0) g.put(xx, y0 - 3, hair, hm)
         }
+        if (hs == 8 || hs == 14) {
+            g.rect(cx - 3, y0 + 1, cx + 2, y0 + 4, hair, hm)
+            g.put(cx - 4, y0 + 3, hairD, hm)
+        }
+        if (hs == 9 || hs == 15) {
+            g.put(x0 + 2, y0 - 2, hair, hm); g.put(cx - 1, y0 - 3, hair, hm)
+            g.put(cx + 2, y0 - 2, hairD, hm); g.put(x1 - 2, y0 - 1, hair, hm)
+        }
+        if (hs == 10) {
+            g.ell(cx.toFloat(), (y0 - 1).toFloat(), hw / 2f + 3f, 3f, hair, hm)
+        }
+        if (hs == 11 || hs == 12) {
+            g.rect(x0, y0 + 2, x0 + 2, y0 + 5, hairD, hm)
+            g.rect(x1 - 2, y0 + 2, x1, y0 + 5, hairD, hm)
+        }
+        if (hs == 13) {
+            g.rect(x0, y0 - 1, x1, y0 + 2, hair, hm)
+            g.rect(x0, y0 + 2, x0 + 2, y0 + 4, hair, hm)
+        }
     }
     // detalhes do rosto
     when (L.accessory) {
@@ -291,6 +462,9 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             g.rect(cx - 1, ey, cx + 1, ey + 1, frame, DETAIL)
         }
         5 -> { g.put(x0 - 1, y0 + 7, GOLD, DETAIL); g.put(x1, y0 + 7, GOLD, DETAIL) }
+        6 -> { val rune = rgb(90, 190, 210); g.put(cx, y0 + 2, rune, DETAIL); g.put(cx - 1, y0 + 3, rune, DETAIL); g.put(cx + 1, y0 + 3, rune, DETAIL); g.put(cx, y0 + 4, rune, DETAIL) }
+        7 -> { val paint = rgb(150, 45, 45); g.line(x0 + 1, ey - 1, x1 - 2, ey + 2, paint, DETAIL) }
+        8 -> { g.put(x0 - 1, y0 + 7, GOLD, DETAIL); g.put(x0 - 2, y0 + 8, GOLD, DETAIL) }
     }
     // chifres do tiefling
     if (L.race == 4) {
@@ -323,6 +497,9 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             for (xx in x0 + 1 until x1 - 1 step 2) g.put(xx, y0 - 2, GOLD, g.newId())
             g.put(cx, y0, rgb(200, 50, 60), DETAIL)
         }
+        5 -> { g.rect(x0 + 1, y0 - 1, x1 - 1, y0, GOLD); g.put(cx, y0 - 2, GOLD, DETAIL); g.put(cx - 1, y0 - 2, GOLD, DETAIL) }
+        6 -> { g.rect(x0 - 1, y0 - 2, x1 + 1, y0 + 7, STEEL); g.rect(x0, y0 + 6, x1, y0 + 8, darkC(STEEL, .35f), DETAIL); g.rect(cx - 1, y0 + 3, cx + 1, y0 + 5, 0, 0) }
+        7 -> { g.rect(x0 - 1, y0 + 1, x1 + 1, y0 + 3, rgb(120, 35, 45)); g.put(cx, y0 + 2, GOLD, DETAIL) }
     }
     // armas na mão (esquerda da imagem) e escudo
     val w = L.weapon; val hx = tx0 - 2; val hy = ty + 8
@@ -349,6 +526,9 @@ internal fun buildSprite(L: CharacterLook): IntArray {
         g.rect(sx, sy, sx + 6, sy + 7, cloth); g.rect(sx + 1, sy + 7, sx + 5, sy + 8, cloth); g.rect(sx + 2, sy + 8, sx + 4, sy + 9, cloth)
         g.rect(sx, sy, sx + 6, sy + 1, STEEL, DETAIL); g.rect(sx + 2, sy + 2, sx + 4, sy + 5, GOLD, DETAIL)
     }
+    if (w == 6) { g.rect(hx, hy - 5, hx + 1, hy + 2, LEATHER); g.rect(hx - 1, hy - 7, hx + 2, hy - 5, STEEL) }
+    if (w == 7) { g.rect(hx, hy - 15, hx + 1, hy + 8, LEATHER); g.line(hx - 2, hy - 14, hx + 2, hy - 14, STEEL, DETAIL); g.put(hx, hy - 16, STEEL, DETAIL) }
+    if (w == 8) { g.rect(hx, hy - 12, hx + 1, hy + 4, LEATHER); g.rect(hx - 2, hy - 15, hx + 2, hy - 11, STEEL); g.put(hx - 1, hy - 16, STEEL, DETAIL); g.put(hx + 1, hy - 16, STEEL, DETAIL) }
 
     // --- acabamento: luz no topo/esquerda, sombra embaixo/direita de cada peça, depois o contorno escuro
     fun opaque(x: Int, y: Int) = x in 0 until SPRITE_W && y in 0 until SPRITE_H && (g.c[y * SPRITE_W + x] ushr 24) != 0

@@ -2,6 +2,50 @@
 
 Todas as mudanças relevantes do RPG Sombrio, da mais recente para a mais antiga. Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 
+## 0.9.8 — Mais opções no criador de personagens
+
+### Adicionado
+- 8 novos estilos de cabelo: franja lateral, ondulado, afro, dreadlocks, tranças duplas, undercut, longo repartido e desgrenhado.
+- 3 estilos de barba, 3 detalhes faciais, 6 modelos de roupa, 3 capas, 3 acessórios de cabeça e 3 armas adicionais.
+- 5 novas cores para roupas e 4 novas cores para cabelo.
+- Novos detalhes visuais em pixel art para diferenciar mantos, cota de malha, armadura real, roupas de patrulheiro, traje arcano e roupa de viajante.
+
+### Compatibilidade
+- As opções existentes mantêm seus índices; personagens já salvos continuam compatíveis.
+- Versão do app atualizada para 0.9.8 (versionCode 18).
+
+## Não lançado — Criação de personagem mais guiada
+
+### Corrigido
+- A ficha nova abria sempre na aba *Ficha*: o código previa abrir no *Perfil* quando o nome está vazio, mas toda ficha nascia chamada "Novo personagem". Agora a ficha recém-criada abre no *Perfil*, onde ficam o retrato e a aparência.
+- **Gerar descrição** (Aparência → História) apagava o texto existente sem avisar; agora pede confirmação quando já há um texto diferente do gerado.
+- PV temporários passam a aparecer em qualquer sistema com pontos de vida (exceto reservas de dados). Inspiração e salvaguardas contra a morte continuam só nos sistemas no estilo D&D.
+
+### Adicionado
+- **Criação guiada**: depois de escolher o sistema, um diálogo pede o nome (obrigatório) e, se quiser, classe e origem.
+- **Escolher atributos** por ficha (aba *Ficha* → Atributos): cada ficha pode esconder atributos do sistema. Os valores continuam guardados e valendo nas fórmulas. Criar atributos novos continua sendo em Campanha → Sistemas.
+- Testes da criação de ficha, dos atributos escondidos e da aba inicial (`NewCharacterTest`).
+
+### Alterado
+- A lista de fichas é gravada no aparelho ~0,3 s depois da última edição (antes, a cada letra digitada), e sempre ao sair da tela.
+
+## 0.9.5 a 0.9.7 — Ficha em abas, Motor em abas e telas vazias
+
+> Estas três versões estão registradas juntas: o conteúdo foi levantado comparando o código da 0.9.3 com o da 0.9.7, sem os pacotes intermediários. O build subiu de 14 para 17 (`versionCode`) e a versão para 0.9.7.
+
+### Adicionado
+- **Ficha de personagem em abas**: *Ficha* (recursos, atributos, salvaguardas, perícias, traços), *Combate* (painel de rolagem, ataques, magias, resistências e vulnerabilidades), *Itens* (aparece só se o sistema usa inventário) e *Perfil* (identidade, aparência, proficiências, história e anotações).
+- **Cabeçalho da ficha** com avatar, PV, CA e iniciativa, com rolagem de iniciativa direto dele. Ao rolar a página, uma **barra compacta** (nome, PV e CA) fica fixa junto das abas.
+- A aba aberta é lembrada na ficha. Ao trocar de aba, o conteúdo volta ao topo sem reabrir o cabeçalho.
+- Seções *Proficiências* e *História* no Perfil da ficha.
+- **Motor em abas** (*Rolar* e *Combate*, com a contagem de combatentes). Abre em *Combate* quando já há combatentes, e lembra a ficha ou criatura escolhida para rolar.
+- **Estados vazios** com ícone, título e uma frase de orientação nas listas de fichas, criaturas, magias, itens e traços (diferente de "busca sem resultado").
+
+### Alterado
+- Arena de combate: barra de PV mais fina, destaque em âmbar para crítico, cinza para erro e fundo em degradê.
+- Dados de exemplo renomeados para o visual neutro: "Lobo sombrio" virou "Lobo selvagem" e "Chama sombria" virou "Chama viva".
+- Pequenos ajustes de layout nas telas de Campanha, Biblioteca, Sistemas, Itens, Traços, Bestiário e Grimório, e no criador de aparência.
+
 ## 0.9.4 — Novo visual neutro, com modo claro e escuro
 
 ### Adicionado
@@ -316,3 +360,10 @@ Esta fase foi escrita sem acesso a Android SDK/Gradle. A primeira compilação e
 - O construtor de sistemas ainda armazena fórmulas como texto; não há interpretador seguro de fórmulas.
 - Não foi possível compilar nesta sessão porque o ambiente não possui Android SDK/Gradle.
 - É necessário compilar e testar no GitHub Actions e em aparelho Android antes de considerar a versão validada.
+
+## 0.9.9 — Expansão de vestimentas do criador pixel art
+- Categoria de roupas ampliada de 10 para 20 opções, preservando os índices anteriores dos personagens salvos.
+- Adicionados modelos com desenho próprio: armadura de placas, armadura de escamas, brigandina, cavaleiro negro, guarda real, guerreiro tribal, manto de necromante, vestes de clérigo, traje de assassino e traje de nobre.
+- Incluídos detalhes de pixel art como ombreiras, rebites, placas, faixas, golas, símbolos e bordados.
+- Atualizados `versionCode` para 19 e `versionName` para 0.9.9.
+- Validação estática dos índices e alterações realizada; compilação Android não executada neste ambiente.

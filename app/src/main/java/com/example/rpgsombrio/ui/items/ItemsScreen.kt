@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.ui.items
 
+import com.example.rpgsombrio.ui.components.EmptyState
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -103,7 +104,7 @@ internal fun ItemsScreen(modifier: Modifier = Modifier) {
             contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            listHeader("Armas, armaduras e tesouros", "Itens", "Biblioteca de itens que as fichas podem carregar",
+            listHeader("Armas, armaduras e tesouros", "Itens", "Itens que as fichas podem carregar",
                 query, { query = it }, "Novo item") {
                 val created = SheetStore.newItem(SheetStore.activeSystemId(prefs))
                 itemList.add(0, created); persist(); openId = created.id
@@ -111,7 +112,7 @@ internal fun ItemsScreen(modifier: Modifier = Modifier) {
             item { SystemFilterRow(sysOptions, sysFilter) { systemFilter = it } }
             if (typeOptions.size > 2) item { ChipFilterRow(typeOptions, filter) { typeFilter = it } }
             if (filtered.isEmpty()) item {
-                EmptyHint(if (query.isBlank() && filter == "Todos") "Nenhum item neste filtro. Toque em Novo item ou mude o sistema." else "Nenhum resultado.")
+                if (query.isBlank() && filter == "Todos") EmptyState("item", "Nenhum item ainda", "Toque em Novo item para cadastrar armas, armaduras e tesouros.") else EmptyHint("Nenhum resultado.")
             }
             items(filtered, key = { it.id }) { entry ->
                 ItemCard(entry, if (entry.systemId.isBlank()) "Todos os sistemas" else systemDisplayName(prefs, entry.systemId)) { openId = entry.id }

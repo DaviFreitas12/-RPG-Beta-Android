@@ -223,6 +223,8 @@ data class CharacterSheet(
     val conditionImmunities: String = "",
     /** Chaves dos atributos em que a ficha tem proficiência na salvaguarda. */
     val saveProficiencies: List<String> = emptyList(),
+    /** Chaves dos atributos do sistema que esta ficha esconde (os valores continuam guardados e valendo nas fórmulas). */
+    val hiddenAttributes: List<String> = emptyList(),
     val experience: Int = 0,
     val speed: String = "",
     val tempHp: Int = 0,
@@ -362,6 +364,22 @@ data class SystemProfile(
     val usesProficiency: Boolean get() = attributes.any { it.hasModifier }
     fun attr(key: String): SheetAttr? = attributes.firstOrNull { it.key == key }
 }
+
+/** Ficha nova já preenchida com os padrões do sistema. Lógica pura (sem Android), para poder ser testada. */
+fun buildNewCharacter(profile: SystemProfile, id: String, name: String): CharacterSheet = CharacterSheet(
+    id = id, name = name, systemId = profile.id,
+    attributes = profile.attributes.associate { it.key to it.default },
+    resources = profile.resources.associate { it.key to ResourceValue(it.defaultMax, it.defaultMax) },
+    skills = profile.skillTemplates.map { SkillEntry(it.name, it.attributeKey, systemId = profile.id) }
+)
+
+/** Atributos do sistema que a ficha mostra. Os escondidos pela ficha ficam de fora, mas seus valores continuam valendo nas fórmulas. */
+fun SystemProfile.visibleAttributes(sheet: CharacterSheet): List<SheetAttr> =
+    attributes.filter { it.key !in sheet.hiddenAttributes }
+
+/** Aba em que a ficha abre: o Perfil para ficha recém-criada ou sem nome; senão a Ficha. */
+fun initialSheetTab(startOnProfile: Boolean, name: String): String =
+    if (startOnProfile || name.isBlank()) "Perfil" else "Ficha"
 
 fun shortResourceLabel(resource: SheetResource): String = when (resource.key) {
     "hp" -> "PV"
@@ -513,6 +531,7 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("tempHp", tempHp).put("inspiration", inspiration)
     .put("deathSuccesses", deathSuccesses).put("deathFailures", deathFailures)
     .put("conditions", JSONArray(conditions))
+    .put("hiddenAttributes", JSONArray(hiddenAttributes))
     .put("languages", languages).put("proficiencies", proficiencies).put("senses", senses)
     .put("alignment", alignment).put("background", background).put("appearance", appearance)
     .put("look", look.toJson())
@@ -551,6 +570,7 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     tempHp = o.optInt("tempHp"), inspiration = o.optBoolean("inspiration"),
     deathSuccesses = o.optInt("deathSuccesses"), deathFailures = o.optInt("deathFailures"),
     conditions = o.optJSONArray("conditions").strings(),
+    hiddenAttributes = o.optJSONArray("hiddenAttributes").strings(),
     languages = o.optString("languages"), proficiencies = o.optString("proficiencies"), senses = o.optString("senses"),
     alignment = o.optString("alignment"), background = o.optString("background"), appearance = o.optString("appearance"),
     look = decodeLook(o.optJSONObject("look")),
@@ -686,14 +706,9 @@ object SheetStore {
 
     // --- criação de registros novos, já preenchidos conforme o sistema ---
 
-    fun newCharacter(prefs: SharedPreferences, systemId: String? = null): CharacterSheet {
+    fun newCharacter(prefs: SharedPreferences, systemId: String? = null, name: String = "Novo personagem"): CharacterSheet {
         val p = SystemProfiles.resolve(prefs, systemId ?: activeSystemId(prefs))
-        return CharacterSheet(
-            id = newId(), name = "Novo personagem", systemId = p.id,
-            attributes = p.attributes.associate { it.key to it.default },
-            resources = p.resources.associate { it.key to ResourceValue(it.defaultMax, it.defaultMax) },
-            skills = p.skillTemplates.map { SkillEntry(it.name, it.attributeKey, systemId = p.id) }
-        )
+        return buildNewCharacter(p, newId(), name)
     }
 
     fun newMonster(prefs: SharedPreferences, systemId: String? = null): MonsterSheet {

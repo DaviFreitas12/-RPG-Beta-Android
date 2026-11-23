@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.ui.spellbook
 
+import com.example.rpgsombrio.ui.components.EmptyState
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
@@ -139,7 +140,7 @@ internal fun SpellbookScreen(modifier: Modifier = Modifier) {
             if (levelOptions.size > 2) item { ChipFilterRow(levelOptions, filter) { levelFilter = it } }
             if (characters.isNotEmpty()) item { CasterPicker(characters, caster) { casterId = it } }
             if (filtered.isEmpty()) item {
-                EmptyHint(if (query.isBlank() && filter == "Todos" && sysFilter == ANY_SYSTEM) "Nenhuma magia ainda. Toque em Nova magia." else "Nenhum resultado.")
+                if (query.isBlank() && filter == "Todos" && sysFilter == ANY_SYSTEM) EmptyState("magia", "Nenhuma magia ainda", "Toque em Nova magia para criar o primeiro feitiço ou poder.") else EmptyHint("Nenhum resultado.")
             }
             groups.forEach { (level, list) ->
                 item(key = "header-$level") {

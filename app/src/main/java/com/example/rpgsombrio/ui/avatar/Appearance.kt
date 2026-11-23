@@ -16,7 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,15 +51,15 @@ import kotlin.random.Random
 private val RACE_NAMES = listOf("Humano", "Elfo", "Anão", "Orc", "Tiefling", "Halfling")
 private val BODY_NAMES = listOf("Padrão", "Magro", "Forte")
 private val FACE_NAMES = listOf("Normal", "Cheio", "Anguloso")
-private val HAIR_NAMES = listOf("Careca", "Curto", "Longo", "Coque", "Moicano", "Rabo", "Trança", "Espetado")
+private val HAIR_NAMES = listOf("Careca", "Curto", "Longo", "Coque", "Moicano", "Rabo", "Trança", "Espetado", "Franja lateral", "Ondulado", "Afro", "Dreadlocks", "Tranças duplas", "Undercut", "Longo repartido", "Desgrenhado")
 private val EYE_STYLE_NAMES = listOf("Normal", "Estreito", "Grande")
 private val MOUTH_NAMES = listOf("Neutra", "Sorriso", "Séria", "Presas")
-private val BEARD_NAMES = listOf("Nenhuma", "Rala", "Cheia", "Bigode", "Longa", "Cavanhaque")
-private val ACCESSORY_NAMES = listOf("Nenhum", "Cicatriz", "Tapa-olho", "Pintura", "Óculos", "Brinco")
-private val OUTFIT_NAMES = listOf("Túnica", "Armadura", "Vestes", "Couro")
-private val CAPE_NAMES = listOf("Sem capa", "Capa curta", "Capa longa")
-private val HEADGEAR_NAMES = listOf("Nenhum", "Capuz", "Elmo", "Chapéu de mago", "Coroa")
-private val WEAPON_NAMES = listOf("Nenhuma", "Espada", "Cajado", "Arco", "Machado", "Espada e escudo")
+private val BEARD_NAMES = listOf("Nenhuma", "Rala", "Cheia", "Bigode", "Longa", "Cavanhaque", "Barba curta", "Barba cerrada", "Bigode e cavanhaque")
+private val ACCESSORY_NAMES = listOf("Nenhum", "Cicatriz", "Tapa-olho", "Pintura", "Óculos", "Brinco", "Marca rúnica", "Pintura de guerra", "Piercing")
+private val OUTFIT_NAMES = listOf("Túnica", "Armadura", "Vestes", "Couro", "Manto", "Cota de malha", "Armadura real", "Roupas de patrulheiro", "Traje arcano", "Viajante", "Armadura de placas", "Armadura de escamas", "Brigandina", "Cavaleiro negro", "Guarda real", "Guerreiro tribal", "Manto de necromante", "Vestes de clérigo", "Traje de assassino", "Traje de nobre")
+private val CAPE_NAMES = listOf("Sem capa", "Capa curta", "Capa longa", "Manto com capuz", "Capa rasgada", "Pelerine")
+private val HEADGEAR_NAMES = listOf("Nenhum", "Capuz", "Elmo", "Chapéu de mago", "Coroa", "Tiara", "Elmo fechado", "Bandana")
+private val WEAPON_NAMES = listOf("Nenhuma", "Espada", "Cajado", "Arco", "Machado", "Espada e escudo", "Adaga", "Lança", "Foice")
 
 private fun <T> List<T>.at(i: Int): T = this[i.coerceIn(0, lastIndex)]
 
@@ -127,10 +132,10 @@ private fun skinForRace(race: Int, current: Int): Int = when (race) {
 
 /** Texto de aparência montado a partir das escolhas do avatar e dos campos de descrição. */
 private fun lookSummary(look: CharacterLook): String {
-    val colorNames = listOf("preto", "castanho", "ruivo", "loiro", "grisalho", "branco", "roxo", "verde", "vermelho", "azul")
+    val colorNames = listOf("preto", "castanho", "ruivo", "loiro", "grisalho", "branco", "roxo", "verde", "vermelho", "azul", "prateado", "cobre", "verde-escuro", "rosa")
     val eyeNames = listOf("castanhos", "azuis", "verdes", "cinzentos", "âmbar", "vermelhos", "violeta")
-    val hairText = listOf("careca", "cabelo curto", "cabelo longo", "cabelo preso em coque", "moicano", "rabo de cavalo", "trança", "cabelo espetado")
-    val beardText = listOf("", "barba rala", "barba cheia", "bigode", "barba longa", "cavanhaque")
+    val hairText = listOf("careca", "cabelo curto", "cabelo longo", "cabelo preso em coque", "moicano", "rabo de cavalo", "trança", "cabelo espetado", "cabelo com franja lateral", "cabelo ondulado", "cabelo afro", "dreadlocks", "tranças duplas", "cabelo undercut", "cabelo longo repartido", "cabelo desgrenhado")
+    val beardText = listOf("", "barba rala", "barba cheia", "bigode", "barba longa", "cavanhaque", "barba curta", "barba cerrada", "bigode e cavanhaque")
     val parts = mutableListOf<String>()
     parts += RACE_NAMES.at(look.race)
     if (look.age.isNotBlank()) parts += if (look.age.all { it.isDigit() }) "${look.age} anos" else look.age.trim()
@@ -149,6 +154,8 @@ private fun lookSummary(look: CharacterLook): String {
 internal fun AppearanceSection(sheet: CharacterSheet, onChange: (CharacterSheet) -> Unit) {
     val look = sheet.look
     fun update(next: CharacterLook) = onChange(sheet.copy(look = next.copy(configured = true)))
+    var confirmOverwrite by remember { mutableStateOf(false) }
+    fun writeSummary() = onChange(sheet.copy(appearance = lookSummary(look), look = look.copy(configured = true)))
     CollapsibleSection(
         "APARÊNCIA",
         summary = if (look.configured) listOf(RACE_NAMES.at(look.race), look.age, look.height).filter { it.isNotBlank() }.joinToString(" • ") else "Crie o visual do personagem",
@@ -197,9 +204,25 @@ internal fun AppearanceSection(sheet: CharacterSheet, onChange: (CharacterSheet)
         TextInput("Porte (magro, forte…)", look.build, { update(look.copy(build = it)) })
         TextInput("Marcas e detalhes", look.marks, { update(look.copy(marks = it)) }, singleLine = false, minLines = 2)
         OutlinedButton(
-            onClick = { onChange(sheet.copy(appearance = lookSummary(look), look = look.copy(configured = true))) },
+            onClick = {
+                // Só pergunta quando já existe um texto diferente do que seria gerado.
+                if (sheet.appearance.isNotBlank() && sheet.appearance.trim() != lookSummary(look)) {
+                    confirmOverwrite = true
+                } else {
+                    writeSummary()
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Gerar descrição em \"Aparência\" (História)") }
+    }
+    if (confirmOverwrite) {
+        AlertDialog(
+            onDismissRequest = { confirmOverwrite = false },
+            title = { Text("Substituir a descrição?") },
+            text = { Text("O texto atual de Aparência (em História) será trocado pelo gerado a partir do visual.") },
+            confirmButton = { TextButton(onClick = { confirmOverwrite = false; writeSummary() }) { Text("Substituir") } },
+            dismissButton = { TextButton(onClick = { confirmOverwrite = false }) { Text("Cancelar") } }
+        )
     }
 }
 

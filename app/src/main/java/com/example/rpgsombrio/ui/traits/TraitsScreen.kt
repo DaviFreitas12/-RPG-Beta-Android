@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.ui.traits
 
+import com.example.rpgsombrio.ui.components.EmptyState
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -118,7 +119,7 @@ internal fun TraitsScreen(modifier: Modifier = Modifier) {
             item { SystemFilterRow(sysOptions, sysFilter) { systemFilter = it } }
             item { ChipFilterRow(listOf(KIND_ALL, KIND_ADVANTAGE, KIND_DISADVANTAGE), kindFilter) { kindFilter = it } }
             if (filtered.isEmpty()) item {
-                EmptyHint(if (query.isBlank() && kindFilter == KIND_ALL) "Nenhum traço ainda. Toque em Novo traço." else "Nenhum resultado.")
+                if (query.isBlank() && kindFilter == KIND_ALL) EmptyState("traco", "Nenhum traço ainda", "Toque em Novo traço para criar vantagens e desvantagens.") else EmptyHint("Nenhum resultado.")
             }
             items(filtered, key = { it.id }) { trait -> TraitCard(trait, prefs) { openId = trait.id } }
         }

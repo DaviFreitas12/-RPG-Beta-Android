@@ -28,13 +28,15 @@ import com.example.rpgsombrio.ui.theme.RpgTheme
 import com.example.rpgsombrio.ui.traits.TraitsScreen
 
 private val LIBRARY_PAGES = listOf("Bestiário", "Grimório", "Itens", "Traços")
-private val HOME_PAGES = listOf("Campanha", "Configurações")
+private val HOME_PAGES = listOf("Configurações")
+private val CAMPAIGN_PAGES = listOf("Sistemas")
 
 @Composable
 internal fun RpgApp() {
     var selected by rememberSaveable { mutableStateOf("Início") }
     BackHandler(enabled = selected in LIBRARY_PAGES) { selected = "Biblioteca" }
     BackHandler(enabled = selected in HOME_PAGES) { selected = "Início" }
+    BackHandler(enabled = selected in CAMPAIGN_PAGES) { selected = "Campanha" }
     RpgTheme {
         Scaffold(
             containerColor = Night,
@@ -47,11 +49,11 @@ internal fun RpgApp() {
                         Triple("Personagens", "Fichas", Icons.Default.Person),
                         Triple("Motor", "Dados", Icons.Default.Casino),
                         Triple("Biblioteca", "Acervo", Icons.Default.MenuBook),
-                        Triple("Sistemas", "Sistemas", Icons.Default.Tune)
+                        Triple("Campanha", "Campanha", Icons.Default.Map)
                     )
                     tabs.forEach { (route, label, icon) ->
                         NavigationBarItem(
-                            selected = selected == route || (route == "Biblioteca" && selected in LIBRARY_PAGES) || (route == "Início" && selected in HOME_PAGES),
+                            selected = selected == route || (route == "Biblioteca" && selected in LIBRARY_PAGES) || (route == "Início" && selected in HOME_PAGES) || (route == "Campanha" && selected in CAMPAIGN_PAGES),
                             onClick = { selected = route },
                             icon = { Icon(icon, contentDescription = label) },
                             label = { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) },

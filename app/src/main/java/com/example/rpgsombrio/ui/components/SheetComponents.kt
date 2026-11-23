@@ -1,5 +1,13 @@
 package com.example.rpgsombrio.ui.components
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -204,6 +212,29 @@ internal fun EmptyHint(text: String) {
     Text(text, color = Muted, fontSize = 13.sp)
 }
 
+/** Lista vazia de verdade (não é busca sem resultado): ícone, título e uma frase dizendo o que fazer. */
+@Composable
+internal fun EmptyState(kind: String, title: String, text: String) {
+    val icon = when (kind) {
+        "ficha" -> Icons.Default.Person
+        "criatura" -> Icons.Default.Pets
+        "magia" -> Icons.Default.MenuBook
+        "item" -> Icons.Default.Inventory2
+        else -> Icons.Default.Star
+    }
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(Modifier.size(64.dp).clip(CircleShape).background(Brand.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Accent, modifier = Modifier.size(30.dp))
+        }
+        Text(title, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(text, color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+    }
+}
+
 @Composable
 internal fun ChipFilterRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -280,7 +311,7 @@ internal fun AttributeGrid(
     onChange: (String, Int) -> Unit
 ) {
     if (profile.attributes.isEmpty()) {
-        EmptyHint("Este sistema ainda não tem atributos. Defina-os na aba Sistemas.")
+        EmptyHint("Este sistema ainda não tem atributos. Defina-os em Campanha > Sistemas.")
         return
     }
     profile.attributes.chunked(3).forEach { row ->

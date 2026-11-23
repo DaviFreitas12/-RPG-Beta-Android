@@ -355,7 +355,7 @@ private fun SystemEditor(
                 TextInput("Fórmula de teste", system.testFormula, { onChange(system.copy(testFormula = it)) })
                 TextInput("Fórmula de iniciativa", system.initiativeFormula, { onChange(system.copy(initiativeFormula = it)) })
                 Text("Exemplo: 1d20 + DES + PROF. A sigla de um atributo vale o seu modificador (ou o valor, se ele não calcula modificador). " +
-                    "A fórmula de teste sugere o texto do Motor e define o dado-base das rolagens de atributo e perícia (vazio = 1d20); " +
+                    "A fórmula de teste sugere o texto da aba Dados e define o dado-base das rolagens de atributo e perícia (vazio = 1d20); " +
                     "vazia, a iniciativa usa o dado-base + DES (quando há).", color = Muted, fontSize = 13.sp)
                 ToggleRow("Reserva de dados (conta sucessos)", system.rollStyle == ROLL_POOL) {
                     onChange(system.copy(rollStyle = if (it) ROLL_POOL else ROLL_SUM))

@@ -1,5 +1,9 @@
 package com.example.rpgsombrio.ui.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
+import com.example.rpgsombrio.ui.theme.Hairline
+import com.example.rpgsombrio.ui.theme.Panel
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -30,6 +34,7 @@ internal fun HomeScreen(modifier: Modifier = Modifier, onNavigate: (String) -> U
     val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
     val campaignName = remember { prefs.getString("active_campaign_name", "Minha campanha") ?: "Minha campanha" }
     val systemName = remember { systemDisplayName(prefs, SheetStore.activeSystemId(prefs)) }
+    val hasCharacters = remember { SheetStore.loadCharacters(prefs).isNotEmpty() }
     Column(modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("RPG", color = Accent, fontWeight = FontWeight.Black, fontSize = 20.sp, letterSpacing = 3.sp, modifier = Modifier.weight(1f))
@@ -56,11 +61,36 @@ internal fun HomeScreen(modifier: Modifier = Modifier, onNavigate: (String) -> U
             InfoPill(systemName)
             TextButton(onClick = { onNavigate("Campanha") }) { Text("Editar campanha", color = Accent) }
         }
+        if (!hasCharacters) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Hairline),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("PRIMEIROS PASSOS", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    listOf(
+                        "Escolha o sistema em Campanha",
+                        "Crie seu personagem em Fichas",
+                        "Role dados e controle o combate em Dados"
+                    ).forEachIndexed { i, step ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(24.dp).clip(CircleShape).background(Brand.copy(alpha = .18f)), contentAlignment = Alignment.Center) {
+                                Text("${i + 1}", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Text(step, color = Ink, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         Button(
             onClick = { onNavigate("Personagens") },
             colors = ButtonDefaults.buttonColors(containerColor = Brand),
             modifier = Modifier.fillMaxWidth().height(54.dp)
-        ) { Text("Abrir personagens", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+        ) { Text(if (hasCharacters) "Abrir personagens" else "Criar primeira ficha", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(onClick = { onNavigate("Motor") }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
             Text("Rolar dados e combate")

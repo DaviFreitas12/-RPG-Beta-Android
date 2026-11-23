@@ -115,7 +115,7 @@ import com.example.rpgsombrio.ui.components.push
 import com.example.rpgsombrio.ui.theme.Accent
 import com.example.rpgsombrio.ui.theme.Brand
 import com.example.rpgsombrio.ui.theme.Danger
-import com.example.rpgsombrio.ui.theme.Gold
+import com.example.rpgsombrio.ui.theme.Amber
 import com.example.rpgsombrio.ui.theme.Good
 import com.example.rpgsombrio.ui.theme.Hairline
 import com.example.rpgsombrio.ui.theme.Ink
@@ -404,7 +404,7 @@ private fun BattleStage(
             }
             floatColor = when {
                 missed || e.dealt <= 0 -> Muted
-                o.critical -> Gold
+                o.critical -> Amber
                 else -> Danger
             }
             coroutineScope {
@@ -441,7 +441,7 @@ private fun BattleStage(
 
     val dieTint = when {
         phase == StagePhase.ROLLING || result == null -> Brand
-        result?.outcome?.critical == true -> Gold
+        result?.outcome?.critical == true -> Amber
         result?.outcome?.fumble == true -> Danger
         result?.outcome?.hit == false -> Muted
         else -> Brand
@@ -481,7 +481,7 @@ private fun BattleStage(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 if (floatTitle.isNotEmpty()) {
-                                    Text(floatTitle, style = TextStyle(color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black,
+                                    Text(floatTitle, style = TextStyle(color = Amber, fontSize = 12.sp, fontWeight = FontWeight.Black,
                                         shadow = Shadow(Color.Black, Offset(1f, 2f), 4f)))
                                 }
                                 Text(floatText, style = TextStyle(color = floatColor, fontSize = 30.sp, fontWeight = FontWeight.Black,
@@ -506,7 +506,7 @@ private fun BattleStage(
 private fun ResultSummary(e: BattleEvent, defenseLabel: String) {
     val o = e.outcome
     val (headline, color) = when {
-        o.critical && o.hit != false -> "CRÍTICO!" to Gold
+        o.critical && o.hit != false -> "CRÍTICO!" to Amber
         o.fumble -> "FALHA CRÍTICA" to Danger
         o.hit == true -> "ACERTOU" to Good
         o.hit == false -> "ERROU" to Muted
@@ -761,7 +761,7 @@ internal fun BattleArena(
             val tint = when {
                 line.startsWith("Vantagem:") -> Good
                 line.startsWith("Desvantagem:") -> Danger
-                line.startsWith("Crítico") -> Gold
+                line.startsWith("Crítico") -> Amber
                 else -> Muted
             }
             Text(line, color = tint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)

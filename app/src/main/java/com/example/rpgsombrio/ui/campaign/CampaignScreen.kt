@@ -87,7 +87,7 @@ internal fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) 
                     OutlinedButton(onClick = { onNavigate("Sistemas") }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Tune, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Abrir construtor de sistemas")
+                        Text("Criar ou editar sistemas")
                     }
                 }
             }

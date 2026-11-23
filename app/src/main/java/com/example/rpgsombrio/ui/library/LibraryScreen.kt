@@ -19,7 +19,7 @@ import com.example.rpgsombrio.ui.theme.Hairline
 import com.example.rpgsombrio.ui.theme.Ink
 import com.example.rpgsombrio.ui.theme.Muted
 import com.example.rpgsombrio.ui.theme.Panel2
-import com.example.rpgsombrio.ui.theme.Rose
+import com.example.rpgsombrio.ui.theme.Sky
 import com.example.rpgsombrio.ui.theme.Violet
 
 @Composable
@@ -37,6 +37,6 @@ internal fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String
         item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças", Coral) { onNavigate("Bestiário") } }
         item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos", Violet) { onNavigate("Grimório") } }
         item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros", Amber) { onNavigate("Itens") } }
-        item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema", Rose) { onNavigate("Traços") } }
+        item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema", Sky) { onNavigate("Traços") } }
     }
 }

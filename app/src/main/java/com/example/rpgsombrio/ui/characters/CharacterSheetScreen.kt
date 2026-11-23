@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.ui.characters
 
+import com.example.rpgsombrio.ui.components.EmptyState
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
@@ -13,7 +14,16 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.example.rpgsombrio.data.initialSheetTab
+import com.example.rpgsombrio.data.visibleAttributes
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -148,17 +158,30 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<CharacterSheet?>(null) }
     var choosingSystem by remember { mutableStateOf(false) }
+    var namingSystemId by rememberSaveable { mutableStateOf<String?>(null) }
+    var newSheetId by rememberSaveable { mutableStateOf<String?>(null) }
     fun persist() = SheetStore.saveCharacters(prefs, sheets.toList())
+    // Digitar regrava todas as fichas a cada letra; agrupa as gravações e garante a última ao sair da tela.
+    val scope = rememberCoroutineScope()
+    val pendingSave = remember { arrayOfNulls<Job>(1) }
+    fun persistSoon() {
+        pendingSave[0]?.cancel()
+        pendingSave[0] = scope.launch { delay(300); persist() }
+    }
+    DisposableEffect(Unit) { onDispose { persist() } }
 
     val current = sheets.firstOrNull { it.id == openId }
     BackHandler(enabled = current != null) { openId = null }
+    // A "ficha recém-criada" só vale até fechar o editor; ao reabrir, a ficha abre na aba normal.
+    LaunchedEffect(openId) { if (openId == null) newSheetId = null }
 
     if (current != null) {
         CharacterEditor(
             modifier, current, prefs,
+            startOnProfile = current.id == newSheetId,
             onChange = { updated ->
                 val i = sheets.indexOfFirst { it.id == updated.id }
-                if (i >= 0) { sheets[i] = updated; persist() }
+                if (i >= 0) { sheets[i] = updated; persistSoon() }
             },
             onBack = { openId = null },
             onDelete = { deleteTarget = current }
@@ -173,7 +196,7 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
             listHeader("Fichas", "Personagens", "Cada ficha segue o sistema a que está vinculada",
                 query, { query = it }, "Nova ficha") { choosingSystem = true }
             if (filtered.isEmpty()) item {
-                EmptyHint(if (query.isBlank()) "Nenhuma ficha ainda. Toque em Nova ficha." else "Nenhum resultado para essa busca.")
+                if (query.isBlank()) EmptyState("ficha", "Nenhuma ficha ainda", "Toque em Nova ficha para criar seu primeiro personagem.") else EmptyHint("Nenhum resultado para essa busca.")
             }
             items(filtered, key = { it.id }) { sheet -> CharacterCard(sheet, prefs) { openId = sheet.id } }
         }
@@ -187,10 +210,23 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
             currentId = campaignId, campaignId = campaignId,
             onPick = { id ->
                 choosingSystem = false
-                val sheet = SheetStore.newCharacter(prefs, id)
-                sheets.add(0, sheet); persist(); openId = sheet.id
+                namingSystemId = id
             },
             onDismiss = { choosingSystem = false }
+        )
+    }
+
+    namingSystemId?.let { systemId ->
+        NewCharacterDialog(
+            profile = remember(systemId) { SystemProfiles.resolve(prefs, systemId) },
+            onCreate = { name, concept, origin ->
+                namingSystemId = null
+                val sheet = SheetStore.newCharacter(prefs, systemId, name).copy(concept = concept, origin = origin)
+                sheets.add(0, sheet); persist()
+                newSheetId = sheet.id
+                openId = sheet.id
+            },
+            onDismiss = { namingSystemId = null }
         )
     }
 
@@ -236,12 +272,44 @@ private fun CharacterCard(sheet: CharacterSheet, prefs: SharedPreferences, onCli
     }
 }
 
+/** Primeiro passo da criação: nome (obrigatório) e, se quiser, classe/origem. Depois a ficha abre no Perfil, para o visual. */
+@Composable
+private fun NewCharacterDialog(
+    profile: SystemProfile,
+    onCreate: (name: String, concept: String, origin: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var concept by rememberSaveable { mutableStateOf("") }
+    var origin by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Novo personagem") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sistema: ${profile.name}", color = Muted, fontSize = 13.sp)
+                TextInput("Nome", name, { name = it }, Modifier.fillMaxWidth().focusRequester(focus))
+                TextInput(profile.conceptLabel, concept, { concept = it })
+                TextInput(profile.originLabel, origin, { origin = it })
+                Text("Em seguida você escolhe a aparência e o retrato.", color = Muted, fontSize = 13.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onCreate(name.trim(), concept.trim(), origin.trim()) }, enabled = name.isNotBlank()) { Text("Criar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CharacterEditor(
     modifier: Modifier,
     sheet: CharacterSheet,
     prefs: SharedPreferences,
+    startOnProfile: Boolean,
     onChange: (CharacterSheet) -> Unit,
     onBack: () -> Unit,
     onDelete: () -> Unit
@@ -257,7 +325,7 @@ private fun CharacterEditor(
 
     // Abas: o que se consulta jogando (Ficha, Combate, Itens) separado do que se monta uma vez (Perfil).
     val tabs = listOf("Ficha", "Combate") + (if (profile.usesInventory) listOf("Itens") else emptyList()) + listOf("Perfil")
-    var savedTab by rememberSaveable(sheet.id) { mutableStateOf(if (sheet.name.isBlank()) "Perfil" else "Ficha") }
+    var savedTab by rememberSaveable(sheet.id) { mutableStateOf(initialSheetTab(startOnProfile, sheet.name)) }
     val tab = if (savedTab in tabs) savedTab else "Ficha"
     val listState = rememberLazyListState()
     // Ao trocar de aba, volta ao topo do conteúdo (mas não ao topo da página, para não reabrir o cabeçalho).
@@ -300,13 +368,21 @@ private fun CharacterEditor(
                 "Ficha" -> {
                     item { ResourcesSection(sheet, profile, onChange) }
                     item {
-                        CollapsibleSection("ATRIBUTOS", summary = "${profile.attributes.size} atributos") {
-                            AttributeGrid(
-                                profile, sheet.attributes,
-                                onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) }
-                            ) { key, value ->
-                                onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                        val shownAttrs = profile.visibleAttributes(sheet)
+                        val attrSummary = if (shownAttrs.size == profile.attributes.size) "${profile.attributes.size} atributos"
+                            else "${shownAttrs.size} de ${profile.attributes.size} atributos"
+                        CollapsibleSection("ATRIBUTOS", summary = attrSummary) {
+                            if (shownAttrs.isEmpty() && profile.attributes.isNotEmpty()) {
+                                EmptyHint("Nenhum atributo visível nesta ficha. Use \"Escolher atributos\" para mostrar.")
+                            } else {
+                                AttributeGrid(
+                                    profile.copy(attributes = shownAttrs), sheet.attributes,
+                                    onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) }
+                                ) { key, value ->
+                                    onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                                }
                             }
+                            SheetAttributeChooser(sheet, profile, onChange)
                         }
                     }
                     if (profile.usesProficiency && !profile.isPool) item {
@@ -490,7 +566,7 @@ private fun RollPanel(
                 } else {
                     val fighter = characterCombatant(engine, sheet, profile, SheetStore.loadItems(prefs))
                     CombatStore.add(prefs, fighter)
-                    log.push(RollLine("${fighter.name} entrou no combate (iniciativa ${fighter.initiative}). Veja na aba Motor.", true))
+                    log.push(RollLine("${fighter.name} entrou no combate (iniciativa ${fighter.initiative}). Veja na aba Dados.", true))
                 }
             }, modifier = Modifier.weight(1f)) { Text("Ao combate") }
         }
@@ -688,7 +764,7 @@ private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: 
         if (budget > 0 && net > budget) {
             Text("Os pontos gastos passam do orçamento do sistema ($budget).", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
-        if (visibleIds.isEmpty()) EmptyHint("Nenhuma vantagem ou desvantagem deste sistema. Cadastre na Biblioteca e vincule aqui.")
+        if (visibleIds.isEmpty()) EmptyHint("Nenhuma vantagem ou desvantagem deste sistema. Cadastre no Acervo e vincule aqui.")
         visibleIds.forEach { id ->
             val trait = library.firstOrNull { it.id == id }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -717,7 +793,7 @@ private fun TraitsSection(sheet: CharacterSheet, profile: SystemProfile, prefs: 
             title = { Text("Vantagens e desvantagens") },
             text = {
                 if (available.isEmpty()) {
-                    Text("Nenhum traço para este sistema. Cadastre em Biblioteca > Vantagens e desvantagens.")
+                    Text("Nenhum traço para este sistema. Cadastre em Acervo > Vantagens e desvantagens.")
                 } else {
                     LazyColumn(Modifier.heightIn(max = 360.dp)) {
                         items(available, key = { it.id }) { trait ->

@@ -2,14 +2,14 @@
 
 Aplicativo Android de RPG de mesa **para qualquer sistema e qualquer estilo de jogo** (fantasia, terror, ficção científica, investigação...), feito em Kotlin e Jetpack Compose. Funciona 100% offline, com modo claro e escuro.
 
-**Versão:** 0.9.6 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
+**Versão:** 0.9.9 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
 
 ## Funcionalidades
 
 - **Início** — tela de abertura enxuta: campanha atual e atalhos para personagens e dados.
 - **Campanha** — nome, descrição e sistema de regras.
 - **Configurações** — aparência (claro, escuro ou do celular) e informações do app.
-- **Personagens, Bestiário e Grimório** — fichas com cabeçalho (avatar, PV, CA, iniciativa) e abas Ficha, Combate, Itens e Perfil, guiadas pelo sistema da campanha. Retrato da galeria ou avatar em pixel art.
+- **Personagens, Bestiário e Grimório** — criação guiada (nome, classe e origem), escolha de quais atributos aparecem em cada ficha, fichas com cabeçalho (avatar, PV, CA, iniciativa) e abas Ficha, Combate, Itens e Perfil, guiadas pelo sistema da campanha. Retrato da galeria ou avatar em pixel art.
 - **Itens e Traços** — biblioteca de itens (tipo, peso, bônus, dano) e de vantagens/desvantagens com custo em pontos; a ficha tem inventário e orçamento de pontos.
 - **Sistemas** — construtor de sistemas próprios (atributos, recursos, perícias, dados, fórmulas). D&D 5e, D&D 2024 e Vampiro vêm como modelos editáveis.
 - **Motor de regras** — rolagens (d4–d100), fórmulas com variáveis (`1d20 + DES + PROF`), testes contra CD, iniciativa, turnos, ataques, salvaguardas, condições com duração e salvaguardas contra a morte.
