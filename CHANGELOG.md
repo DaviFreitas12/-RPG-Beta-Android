@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.14 — Cartas de combate e papéis Mestre/Jogador
+- **Cartas de ação** (`CombatAction`, `CombatActionCard`): cada golpe, ataque ou habilidade vira uma carta com nome, tipo de dano, bônus de acerto e fórmula de dano.
+- **Deck tático** (`CombatDeckScreen`): o jogador vê a "mão" do personagem em duas colunas; um toque numa carta rola ataque e dano no motor de regras.
+- **Arena por papel** (`BattleArenaScreen`): a ficha ativa define a interface. *Mestre* mantém o painel completo (turnos, PV, condições, participantes, encerrar combate); *Jogador* abre o deck de cartas.
+- **Papel na ficha**: `CharacterSheet.role` (padrão "jogador"), salvo junto da ficha. Fichas antigas abrem como jogador. Escolha em Ficha → Perfil → Papel na mesa e na aba Combate do Motor.
+- Sem ficha de personagem escolhida (criatura ou valores manuais), o Motor abre como Mestre.
+- Jogador sem ataques cadastrados continua com os controles manuais; jogador cujo personagem não está na batalha vê um aviso.
+- **Avatar**: 4 novos acessórios de cabeça (boina, chapéu de aba larga, gorro de lã, testeira de couro). Topete, coques, mullet e cabelo longo já existiam desde a 0.9.8+.
+- Testes novos: `CombatActionTest`.
+
 ## 0.9.12 — Character Studio (primeira prévia funcional)
 - Integrada uma tela inicial do Character Studio acessível pela tela Início, sem alterar as cinco abas principais.
 - Adicionada criação, seleção e exclusão de projetos de personagem.

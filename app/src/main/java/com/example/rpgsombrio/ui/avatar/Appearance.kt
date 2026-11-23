@@ -58,7 +58,7 @@ private val BEARD_NAMES = listOf("Nenhuma", "Rala", "Cheia", "Bigode", "Longa", 
 private val ACCESSORY_NAMES = listOf("Nenhum", "Cicatriz", "Tapa-olho", "Pintura", "Óculos", "Brinco", "Marca rúnica", "Pintura de guerra", "Piercing")
 private val OUTFIT_NAMES = listOf("Túnica", "Armadura", "Vestes", "Couro", "Manto", "Cota de malha", "Armadura real", "Roupas de patrulheiro", "Traje arcano", "Viajante", "Armadura de placas", "Armadura de escamas", "Brigandina", "Cavaleiro negro", "Guarda real", "Guerreiro tribal", "Manto de necromante", "Vestes de clérigo", "Traje de assassino", "Traje de nobre", "Armadura rúnica", "Couraça de gladiador", "Manto de viajante", "Vestes druídicas", "Armadura de sentinela", "Traje de alquimista")
 private val CAPE_NAMES = listOf("Sem capa", "Capa curta", "Capa longa", "Manto com capuz", "Capa rasgada", "Pelerine")
-private val HEADGEAR_NAMES = listOf("Nenhum", "Capuz", "Elmo", "Chapéu de mago", "Coroa", "Tiara", "Elmo fechado", "Bandana", "Máscara de couro", "Elmo com chifres", "Capuz aberto")
+private val HEADGEAR_NAMES = listOf("Nenhum", "Capuz", "Elmo", "Chapéu de mago", "Coroa", "Tiara", "Elmo fechado", "Bandana", "Máscara de couro", "Elmo com chifres", "Capuz aberto", "Boina", "Chapéu de aba larga", "Gorro de lã", "Testeira de couro")
 private val WEAPON_NAMES = listOf("Nenhuma", "Espada", "Cajado", "Arco", "Machado", "Espada e escudo", "Adaga", "Lança", "Foice")
 
 private fun <T> List<T>.at(i: Int): T = this[i.coerceIn(0, lastIndex)]

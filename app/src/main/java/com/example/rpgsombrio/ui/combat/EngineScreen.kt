@@ -53,6 +53,7 @@ import com.example.rpgsombrio.data.CharacterSheet
 import com.example.rpgsombrio.data.CombatStore
 import com.example.rpgsombrio.data.ItemEntry
 import com.example.rpgsombrio.data.MonsterSheet
+import com.example.rpgsombrio.data.SheetRole
 import com.example.rpgsombrio.data.SheetStore
 import com.example.rpgsombrio.data.SystemProfile
 import com.example.rpgsombrio.data.SystemProfiles
@@ -126,7 +127,8 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
     val engine = remember { RpgEngine() }
-    val characters = remember { SheetStore.loadCharacters(prefs) }
+    // Lista observável: trocar o papel (Jogador/Mestre) de uma ficha atualiza a arena na hora.
+    val characters = remember { mutableStateListOf<CharacterSheet>().apply { addAll(SheetStore.loadCharacters(prefs)) } }
     val monsters = remember { SheetStore.loadMonsters(prefs) }
     val library = remember { SheetStore.loadItems(prefs) }
     val log = remember { mutableStateListOf<RollLine>() }
@@ -155,6 +157,15 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     val sourceAttributes: Map<String, Int> = sourceCharacter?.attributes ?: sourceMonster?.attributes ?: emptyMap()
     val sourceSkills = sourceCharacter?.skills?.filter { it.fitsSystem(sourceCharacter.systemId) } ?: emptyList()
     val defenseLabel = if (profile.usesArmorClass) "CA" else "Defesa"
+    // Sem ficha de personagem escolhida (criatura ou valores manuais), quem opera o combate é o Mestre.
+    val userRole = sourceCharacter?.role ?: SheetRole.MASTER
+
+    fun setRole(character: CharacterSheet, role: String) {
+        val at = characters.indexOfFirst { it.id == character.id }
+        if (at < 0) return
+        characters[at] = characters[at].copy(role = SheetRole.normalize(role))
+        SheetStore.saveCharacters(prefs, characters.toList())
+    }
 
     val combatants = remember {
         mutableStateListOf<Combatant>().apply { addAll(CombatStore.refreshFromSheets(prefs, CombatStore.load(prefs))) }
@@ -351,9 +362,16 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
             }
 
             } else {
+            if (sourceCharacter != null) {
+                item {
+                    EditorCard("PAPEL NA MESA", "Jogador vê as cartas de ação; Mestre controla a cena inteira") {
+                        RoleSelector(sourceCharacter.role, { setRole(sourceCharacter, it) })
+                    }
+                }
+            }
             if (ordered.isNotEmpty()) {
                 item {
-                    BattleArena(
+                    BattleArenaScreen(
                         fighters = ordered, activeIndex = activeIndex,
                         characters = characters, monsters = monsters, library = library,
                         prefs = prefs, engine = engine, fallbackVariables = variables, fallbackProfile = profile,
@@ -369,6 +387,7 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
                             }
                         },
                         round = round,
+                        userRole = userRole, playerSheetId = sourceCharacter?.id.orEmpty(),
                         onUpdateFighter = { updateFighter(it) },
                         onNextTurn = { advanceTurn() },
                         onEndCombat = { combatants.clear(); activeId = ""; round = 1; CombatStore.saveRound(prefs, 1); persistCombat() },

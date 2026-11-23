@@ -174,7 +174,7 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     if (hs == 23) { // mullet: nuca alongada e laterais curtas
         g.rect(x0 - 1, y0 + 3, x0 + 1, ty + 11, hair)
         g.rect(x1 - 1, y0 + 3, x1 + 1, ty + 11, hair)
-        for (yy in ty + 5 until minOf(SPRITE_H, ty + 12)) g.put(cx + ((yy / 2) % 2), yy, if (yy % 3 == 0) hairD else hair, g.newId())
+        for (yy in ty + 5 until minOf(SPRITE_H, ty + 12)) g.put(cx + ((yy / 2) % 2), yy, if (yy % 3 == 0) hairD else hair)
     }
     if (hs == 29) { // cabelo longo preso atrás
         g.rect(x0 - 1, y0 + 2, x0 + 1, ty + 8, hair)
@@ -653,6 +653,25 @@ internal fun buildSprite(L: CharacterLook): IntArray {
             g.rect(x0 - 1, y0 - 2, x1 + 1, y0, hood, DETAIL)
             g.rect(x0, y0 + 7, x0 + 1, y0 + 9, hood, DETAIL)
             g.rect(x1 - 1, y0 + 7, x1, y0 + 9, hood, DETAIL)
+        }
+        11 -> { // boina inclinada para o lado
+            g.ell(cx + 1f, (y0 - 1).toFloat(), hw / 2f + 2f, 2.5f, cloth)
+            g.rect(x0, y0 + 1, x1, y0 + 2, darkC(cloth, .3f), DETAIL)
+            g.put(cx + 1, y0 - 4, darkC(cloth, .35f), DETAIL)
+        }
+        12 -> { // chapéu de aba larga
+            g.rect(x0 - 4, y0 + 1, x1 + 4, y0 + 3, LEATHER)
+            g.rect(x0, y0 - 3, x1, y0 + 1, LEATHER)
+            g.rect(x0, y0 - 1, x1, y0, darkC(LEATHER, .35f), DETAIL)
+        }
+        13 -> { // gorro de lã com barra dobrada
+            g.rect(x0, y0 - 2, x1, y0 + 2, cloth)
+            g.rect(x0 - 1, y0 + 1, x1 + 1, y0 + 3, darkC(cloth, .25f))
+            g.put(cx - 1, y0 - 3, lightC(cloth, .4f), DETAIL); g.put(cx, y0 - 3, lightC(cloth, .4f), DETAIL)
+        }
+        14 -> { // testeira de couro com joia
+            g.rect(x0 - 1, y0 + 1, x1 + 1, y0 + 3, LEATHER)
+            g.put(cx, y0 + 2, GOLD, DETAIL)
         }
     }
     // armas na mão (esquerda da imagem) e escudo

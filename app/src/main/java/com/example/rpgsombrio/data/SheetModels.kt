@@ -206,7 +206,6 @@ data class CharacterSheet(
     val id: String,
     val name: String = "",
     val systemId: String = "dnd5e",
-    val role: String = "jogador",
     val concept: String = "",
     val origin: String = "",
     val level: Int = 1,
@@ -246,8 +245,17 @@ data class CharacterSheet(
     val flaws: String = "",
     val money: String = "",
     val equipment: String = "",
-    val notes: String = ""
+    val notes: String = "",
+    /** Papel de quem usa a ficha na mesa (0.9.14): "jogador" ou "mestre". Define a interface da arena de batalha. */
+    val role: String = SheetRole.PLAYER
 )
+
+/** Papéis aceitos em [CharacterSheet.role]. Valores gravados em minúsculas; qualquer outro texto vale como jogador. */
+object SheetRole {
+    const val PLAYER = "jogador"
+    const val MASTER = "mestre"
+    fun normalize(raw: String?): String = if (raw?.trim()?.lowercase() == MASTER) MASTER else PLAYER
+}
 
 data class MonsterSheet(
     val id: String,
@@ -539,6 +547,7 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("personality", personality).put("ideals", ideals).put("bonds", bonds).put("flaws", flaws)
     .put("money", money)
     .put("equipment", equipment).put("notes", notes)
+    .put("role", role)
 
 private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     id = o.getString("id"),
@@ -577,7 +586,8 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     look = decodeLook(o.optJSONObject("look")),
     personality = o.optString("personality"), ideals = o.optString("ideals"), bonds = o.optString("bonds"),
     flaws = o.optString("flaws"), money = o.optString("money"),
-    equipment = o.optString("equipment"), notes = o.optString("notes")
+    equipment = o.optString("equipment"), notes = o.optString("notes"),
+    role = SheetRole.normalize(o.optString("role", SheetRole.PLAYER))
 )
 
 private fun MonsterSheet.toJson(): JSONObject = JSONObject()

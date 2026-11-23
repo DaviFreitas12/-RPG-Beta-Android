@@ -1,6 +1,8 @@
 package com.example.rpgsombrio.ui.characters
 
 import com.example.rpgsombrio.ui.components.EmptyState
+import com.example.rpgsombrio.ui.components.EditorCard
+import com.example.rpgsombrio.ui.combat.RoleSelector
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
@@ -420,6 +422,11 @@ private fun CharacterEditor(
                 }
                 else -> {
                     item { IdentitySection(sheet, profile, prefs, onChange) }
+                    item {
+                        EditorCard("PAPEL NA MESA", "Define a interface da arena: Jogador usa o deck de cartas, Mestre controla a cena") {
+                            RoleSelector(sheet.role, { onChange(sheet.copy(role = it)) })
+                        }
+                    }
                     item { AppearanceSection(sheet, onChange) }
                     item { ProficienciesSection(sheet, onChange) }
                     item { BackstorySection(sheet, onChange) }
