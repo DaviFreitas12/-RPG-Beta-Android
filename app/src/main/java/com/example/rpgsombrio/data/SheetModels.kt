@@ -206,7 +206,7 @@ data class CharacterSheet(
     val id: String,
     val name: String = "",
     val systemId: String = "dnd5e",
-    val role: String = "jogador"
+    val role: String = "jogador",
     val concept: String = "",
     val origin: String = "",
     val level: Int = 1,
