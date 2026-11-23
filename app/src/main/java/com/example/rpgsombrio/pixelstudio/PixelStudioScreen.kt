@@ -162,7 +162,7 @@ private fun PixelCanvas(document: PixelDocument, showGrid: Boolean, tool: Studio
     Canvas(Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFF292929), RoundedCornerShape(8.dp)).border(1.dp, Gold.copy(alpha = .7f), RoundedCornerShape(8.dp))
         .pointerInput(tool, color) {
             detectTapGestures { p ->
-                val point = PixelViewport.screenToPixel(p.x, p.y, 0f, 0f, size.width) ?: return@detectTapGestures
+                val point = PixelViewport.screenToPixel(p.x, p.y, 0f, 0f, size.width.toFloat()) ?: return@detectTapGestures
                 val current = latestDocument
                 val layer = current.layers.last()
                 when (tool) {
@@ -175,7 +175,7 @@ private fun PixelCanvas(document: PixelDocument, showGrid: Boolean, tool: Studio
         .pointerInput(tool, color) {
             detectDragGestures { change, _ ->
                 if (tool == StudioTool.PENCIL || tool == StudioTool.ERASER) {
-                    val point = PixelViewport.screenToPixel(change.position.x, change.position.y, 0f, 0f, size.width) ?: return@detectDragGestures
+                    val point = PixelViewport.screenToPixel(change.position.x, change.position.y, 0f, 0f, size.width.toFloat()) ?: return@detectDragGestures
                     val current = latestDocument
                     val layer = current.layers.last()
                     onChange(current.copy(layers = current.layers.dropLast(1) + PixelDrawing.setPixel(layer, point.x, point.y, if (tool == StudioTool.ERASER) 0 else color)))
