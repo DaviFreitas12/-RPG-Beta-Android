@@ -95,6 +95,10 @@ internal fun HomeScreen(modifier: Modifier = Modifier, onNavigate: (String) -> U
         OutlinedButton(onClick = { onNavigate("Motor") }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
             Text("Rolar dados e combate")
         }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = { onNavigate("Studio") }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+            Text("Character Studio · Criar aparência")
+        }
         Spacer(Modifier.height(12.dp))
     }
 }

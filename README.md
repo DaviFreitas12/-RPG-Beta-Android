@@ -2,7 +2,7 @@
 
 Aplicativo Android de RPG de mesa **para qualquer sistema e qualquer estilo de jogo** (fantasia, terror, ficção científica, investigação...), feito em Kotlin e Jetpack Compose. Funciona 100% offline, com modo claro e escuro.
 
-**Versão:** 0.9.9 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
+**Versão:** 0.9.14 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
 
 ## Funcionalidades
 
@@ -15,7 +15,7 @@ Aplicativo Android de RPG de mesa **para qualquer sistema e qualquer estilo de j
 - **Motor de regras** — rolagens (d4–d100), fórmulas com variáveis (`1d20 + DES + PROF`), testes contra CD, iniciativa, turnos, ataques, salvaguardas, condições com duração e salvaguardas contra a morte.
 - **Arena de combate** — combate com criaturas e personagens, PV sincronizados com a ficha.
 - **Visual neutro e colorido** — modo claro e escuro; cada tipo de conteúdo tem a sua cor.
-- **Criador de aparência** — personagem em pixel art de corpo inteiro, desenhado por código.
+- **Criador de aparência legado** — avatar em pixel art gerado por código; a substituição pelo Character Studio ilustrado está em desenvolvimento.
 
 Os dados ficam no aparelho (SharedPreferences/JSON).
 
@@ -31,6 +31,7 @@ app/src/main/java/com/example/rpgsombrio/
 │   ├── Saves.kt             salvaguardas
 │   └── Death.kt             morte e estabilização
 ├── data/                  Modelos e persistência local
+│   └── studio/              modelos de projetos e assets do Studio
 │   ├── RpgModels.kt · SheetModels.kt · SystemModels.kt
 │   └── UserSystems.kt · CombatStore.kt
 └── ui/                    Interface (Jetpack Compose)
@@ -41,7 +42,7 @@ app/src/main/java/com/example/rpgsombrio/
     ├── library/ · settings/ biblioteca e configurações
     ├── characters/ · bestiary/ · spellbook/ · items/ · traits/ · systems/
     ├── combat/              motor, arena de batalha e painel de salvaguardas
-    └── avatar/              criador de aparência e sprites em pixel art
+    └── avatar/              criador legado e Character Studio em evolução
 
 app/src/test/              Testes unitários do motor e dos modelos
 docs/                      Arquitetura, roadmap e exemplos

@@ -1,3 +1,14 @@
+# Changelog
+
+## 0.9.12 — Character Studio (primeira prévia funcional)
+- Integrada uma tela inicial do Character Studio acessível pela tela Início, sem alterar as cinco abas principais.
+- Adicionada criação, seleção e exclusão de projetos de personagem.
+- Adicionada personalização inicial de base corporal, tom de pele, cabelo e tipo de armadura.
+- Projetos e escolhas são salvos localmente em SharedPreferences/JSON, com atualização automática após cada alteração.
+- Mantida a separação entre aparência visual e atributos de jogo.
+- A prévia visual ainda é um espaço provisório: catálogo de ilustrações em camadas, editor de assets, versões/backup e vínculo com ficha ainda não foram implementados.
+- Versão atualizada para 0.9.12 (versionCode 22).
+
 # Histórico de versões
 
 Todas as mudanças relevantes do RPG Sombrio, da mais recente para a mais antiga. Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
@@ -379,3 +390,12 @@ Esta fase foi escrita sem acesso a Android SDK/Gradle. A primeira compilação e
 ## 0.9.11
 - Adicionadas 10 variações masculinas de cabelo: corte militar, pompadour, penteado para trás, mullet, shag médio, cortina repartida, franja bagunçada, risco lateral, cachos curtos e cabelo longo preso.
 - Mantidos os índices das opções anteriores para preservar personagens já salvos.
+
+
+## 0.9.14 — Character Studio: bases corporais iniciais
+
+- Adicionada prévia vetorial de base corporal masculina e feminina na tela do Character Studio.
+- Incluídos seis tons de pele selecionáveis.
+- Padronizado o enquadramento para futura composição de cabelos, roupas e armaduras em camadas.
+- Novos projetos passam a iniciar com base masculina; projetos antigos com base neutra são migrados visualmente para masculina sem apagar os dados salvos.
+- Mantido o catálogo PNG vazio até existirem artes finais reais, evitando referências a arquivos inexistentes.

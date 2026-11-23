@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.ui.avatar.CharacterStudioScreen
 import com.example.rpgsombrio.ui.bestiary.BestiaryScreen
 import com.example.rpgsombrio.ui.campaign.CampaignScreen
 import com.example.rpgsombrio.ui.characters.CharacterSheetsScreen
@@ -28,8 +29,8 @@ import com.example.rpgsombrio.ui.theme.RpgTheme
 import com.example.rpgsombrio.ui.traits.TraitsScreen
 
 private val LIBRARY_PAGES = listOf("Bestiário", "Grimório", "Itens", "Traços")
-private val HOME_PAGES = listOf("Configurações")
 private val CAMPAIGN_PAGES = listOf("Sistemas")
+private val HOME_PAGES = listOf("Configurações", "Studio")
 
 @Composable
 internal fun RpgApp() {
@@ -73,6 +74,7 @@ internal fun RpgApp() {
                 "Início" -> HomeScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Campanha" -> CampaignScreen(Modifier.padding(padding), onNavigate = { selected = it })
                 "Configurações" -> SettingsScreen(Modifier.padding(padding))
+                "Studio" -> CharacterStudioScreen(Modifier.padding(padding))
                 "Personagens" -> CharacterSheetsScreen(Modifier.padding(padding))
                 "Sistemas" -> SystemsScreen(Modifier.padding(padding))
                 "Motor" -> RpgEngineScreen(Modifier.padding(padding))

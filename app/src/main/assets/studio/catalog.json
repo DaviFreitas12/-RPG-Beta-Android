@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "canvas": {
+    "width": 512,
+    "height": 768,
+    "description": "Todas as camadas de um mesmo conjunto corporal devem compartilhar este canvas e enquadramento."
+  },
+  "assets": []
+}
