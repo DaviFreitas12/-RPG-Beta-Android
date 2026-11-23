@@ -4,6 +4,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.rpgsombrio.ui.components.CollapsibleSection
+import com.example.rpgsombrio.ui.components.signed
 import com.example.rpgsombrio.ui.theme.Night
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
