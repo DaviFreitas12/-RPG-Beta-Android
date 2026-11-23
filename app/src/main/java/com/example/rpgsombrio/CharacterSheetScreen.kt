@@ -1,5 +1,7 @@
 package com.example.rpgsombrio
 
+import com.example.rpgsombrio.pixelstudio.PixelStudioScreen
+
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.activity.compose.BackHandler
@@ -78,12 +80,16 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<CharacterSheet?>(null) }
     var choosingSystem by remember { mutableStateOf(false) }
+    var showPixelStudio by rememberSaveable { mutableStateOf(false) }
     fun persist() = SheetStore.saveCharacters(prefs, sheets.toList())
 
     val current = sheets.firstOrNull { it.id == openId }
-    BackHandler(enabled = current != null) { openId = null }
+    BackHandler(enabled = showPixelStudio) { showPixelStudio = false }
+    BackHandler(enabled = current != null && !showPixelStudio) { openId = null }
 
-    if (current != null) {
+    if (showPixelStudio) {
+        PixelStudioScreen(modifier = modifier, onBack = { showPixelStudio = false })
+    } else if (current != null) {
         CharacterEditor(
             modifier, current, prefs,
             onChange = { updated ->
@@ -100,6 +106,23 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
             contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                androidx.compose.material3.Card(
+                    modifier = Modifier.fillMaxWidth().clickable { showPixelStudio = true },
+                    colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = Panel2),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Gold.copy(alpha = .55f))
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("🎨", fontSize = 28.sp)
+                        Column(Modifier.weight(1f)) {
+                            Text("Pixel Art Studio", color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text("Crie e edite personagens em pixel art 64×64", color = Parchment, fontSize = 12.sp)
+                        }
+                        Text("ABRIR  ›", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             listHeader("Fichas", "Personagens", "Cada ficha segue o sistema a que está vinculada",
                 query, { query = it }, "Nova ficha") { choosingSystem = true }
             if (filtered.isEmpty()) item {
