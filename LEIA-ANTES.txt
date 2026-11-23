@@ -1,0 +1,42 @@
+RPG SOMBRIO — PIXEL ART STUDIO — ETAPA 1 (NÚCLEO 64x64)
+
+Este pacote adiciona a fundação independente do motor Pixel Art Studio.
+Ele NÃO altera MainActivity, fichas, campanha, banco de dados ou Firebase.
+Não contém credenciais, google-services.json, APK ou pasta .git.
+
+CONTEÚDO:
+- Documento fixo 64x64 e camadas RGBA com cópia defensiva dos pixels.
+- Desenho imutável: pixel, pincel, linha, retângulo, preenchimento, espelhamento,
+  conta-gotas, seleção, copiar, limpar e colar.
+- Composição alpha-over, visibilidade e bloqueio de camadas.
+- Histórico de desfazer/refazer com limite configurável.
+- Conversão de coordenadas de tela para a grade 64x64.
+- Formato de projeto binário versionado com verificação CRC32.
+- Salvamento temporário validado, sincronização em disco e backup anterior.
+- Testes unitários para o núcleo.
+
+APLICAÇÃO PELO TERMUX (ANDROID):
+1. Copie este ZIP para Downloads do celular.
+2. No Termux, entre no repositório:
+   cd "$HOME/-RPG-Beta-Android"
+3. Confira a branch e crie uma branch de trabalho se ainda não existir:
+   git status -sb
+   git switch -c feature/pixel-art-studio-v1
+   (Se a branch já existir: git switch feature/pixel-art-studio-v1)
+4. Faça backup do repositório antes de aplicar:
+   cp -r app/src/main/java/com/example/rpgsombrio "$HOME/rpgsombrio-backup-pixelstudio-etapa1"
+5. Extraia o pacote na raiz do repositório:
+   unzip -o ~/storage/shared/Download/PixelStudio-Etapa1-Nucleo.zip -d .
+6. Confira os arquivos adicionados:
+   git status --short
+7. Rode os testes:
+   ./gradlew testDebugUnitTest
+   Se o projeto não tiver gradlew, não tente instalar/alterar Gradle às cegas; envie o resultado para orientação.
+8. Se os testes passarem, rode:
+   ./gradlew assembleDebug
+
+IMPORTANTE:
+- Esta etapa ainda não adiciona a tela visual nem modifica a navegação. Isso será a próxima etapa,
+  depois da validação do núcleo.
+- Não substitua nem apague google-services.json, local.properties ou arquivos existentes.
+- Não faça commit/push antes de confirmar os testes.
