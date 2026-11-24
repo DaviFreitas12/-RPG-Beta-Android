@@ -54,8 +54,6 @@ fun playSkills(sheet: CharacterSheet, showAll: Boolean): List<IndexedValue<Skill
     sheet.skills.withIndex().filter { it.value.fitsSystem(sheet.systemId) && (showAll || it.value.favorite || it.value.proficient) }
         .sortedWith(compareBy({ !it.value.favorite }, { plain(it.value.name) }))
 
-private fun isStrength(a: SheetAttr) = a.key == "strength" || a.abbr.uppercase() in setOf("FOR", "STR")
-private fun isDexterity(a: SheetAttr) = a.key == "dexterity" || a.abbr.uppercase() in setOf("DES", "DEX")
 
 /** Aviso curto para uma salvaguarda afetada pelas condições da ficha, ou null. Ex.: "falha automática (Atordoado)". */
 fun saveConditionNote(conditions: List<String>, attr: SheetAttr): String? {
