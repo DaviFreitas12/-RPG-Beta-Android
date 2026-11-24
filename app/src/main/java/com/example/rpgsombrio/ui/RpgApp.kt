@@ -13,6 +13,7 @@ import com.example.rpgsombrio.ui.avatar.CharacterStudioScreen
 import com.example.rpgsombrio.ui.bestiary.BestiaryScreen
 import com.example.rpgsombrio.ui.campaign.CampaignScreen
 import com.example.rpgsombrio.ui.characters.CharacterSheetsScreen
+import com.example.rpgsombrio.ui.components.MasterOnlyGate
 import com.example.rpgsombrio.ui.combat.RpgEngineScreen
 import com.example.rpgsombrio.ui.home.HomeScreen
 import com.example.rpgsombrio.ui.items.ItemsScreen
@@ -79,7 +80,7 @@ internal fun RpgApp() {
                 "Sistemas" -> SystemsScreen(Modifier.padding(padding))
                 "Motor" -> RpgEngineScreen(Modifier.padding(padding))
                 "Biblioteca" -> LibraryHubScreen(Modifier.padding(padding), onNavigate = { selected = it })
-                "Bestiário" -> BestiaryScreen(Modifier.padding(padding))
+                "Bestiário" -> MasterOnlyGate(Modifier.padding(padding), "Bestiário") { BestiaryScreen(Modifier.padding(padding)) }
                 "Grimório" -> SpellbookScreen(Modifier.padding(padding))
                 "Traços" -> TraitsScreen(Modifier.padding(padding))
                 else -> ItemsScreen(Modifier.padding(padding))

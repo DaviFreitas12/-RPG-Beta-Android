@@ -88,6 +88,7 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<UserSystem?>(null) }
     var blockedUse by remember { mutableStateOf<Pair<UserSystem, Int>?>(null) }
+    var lockedByCharacters by remember { mutableStateOf(false) }
     var activeId by remember { mutableStateOf(SheetStore.activeSystemId(prefs)) }
     val usage = remember {
         (SheetStore.loadCharacters(prefs).map { it.systemId } + SheetStore.loadMonsters(prefs).map { it.systemId })
@@ -133,7 +134,7 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
                     onOpen = { openId = system.id }
                 ) {
                     if (system.id != activeId) FilledTonalButton(onClick = {
-                        SheetStore.setActiveSystem(prefs, system.id); activeId = system.id
+                        if (SheetStore.setActiveSystem(prefs, system.id)) activeId = system.id else lockedByCharacters = true
                     }) { Text("Usar na campanha") }
                     OutlinedButton(onClick = {
                         val copy = UserSystemStore.duplicateOf(prefs, system.id)
@@ -152,7 +153,7 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
                     isActive = def.id == activeId, usedBy = usage[def.id] ?: 0, onOpen = null
                 ) {
                     if (def.id != activeId) FilledTonalButton(onClick = {
-                        SheetStore.setActiveSystem(prefs, def.id); activeId = def.id
+                        if (SheetStore.setActiveSystem(prefs, def.id)) activeId = def.id else lockedByCharacters = true
                     }) { Text("Usar na campanha") }
                     OutlinedButton(onClick = {
                         val copy = UserSystemStore.duplicateOf(prefs, def.id)
@@ -170,6 +171,14 @@ internal fun SystemsScreen(modifier: Modifier = Modifier) {
             if (openId == target.id) openId = null
             deleteTarget = null
         }, onDismiss = { deleteTarget = null })
+    }
+    if (lockedByCharacters) {
+        AlertDialog(
+            onDismissRequest = { lockedByCharacters = false },
+            title = { Text("Sistema da campanha fixo") },
+            text = { Text("A campanha ativa já tem personagens, então o sistema dela não muda. Crie outra campanha com este sistema ou mova os personagens para outra campanha.") },
+            confirmButton = { TextButton(onClick = { lockedByCharacters = false }) { Text("Entendi") } }
+        )
     }
     blockedUse?.let { (system, count) ->
         AlertDialog(

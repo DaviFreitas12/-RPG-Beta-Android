@@ -79,7 +79,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rpgsombrio.data.AttackEntry
+import com.example.rpgsombrio.data.Campaign
+import com.example.rpgsombrio.data.CampaignRole
+import com.example.rpgsombrio.data.CampaignStore
+import com.example.rpgsombrio.data.CreationMethod
+import com.example.rpgsombrio.data.levelEntrySummary
+import com.example.rpgsombrio.data.levelLocked
+import com.example.rpgsombrio.data.levelRulesFor
+import com.example.rpgsombrio.data.pendingLevelUp
+import com.example.rpgsombrio.data.attributesLocked
+import com.example.rpgsombrio.data.attributesLockedFor
+import com.example.rpgsombrio.data.canUseFreeEdit
+import com.example.rpgsombrio.data.pendingAsiGrants
+import com.example.rpgsombrio.data.visibleSheets
+import com.example.rpgsombrio.data.canReopenCreation
+import com.example.rpgsombrio.data.creationRuleFor
+import com.example.rpgsombrio.data.inCreation
+import com.example.rpgsombrio.data.reopenCreation
+import com.example.rpgsombrio.data.startCreation
 import com.example.rpgsombrio.data.CharacterSheet
+import com.example.rpgsombrio.data.SheetGroup
+import com.example.rpgsombrio.data.campaignRoleOf
+import com.example.rpgsombrio.data.groupSheetsByCampaign
+import com.example.rpgsombrio.data.sheetMoveChangesSystem
 import com.example.rpgsombrio.data.CombatStore
 import com.example.rpgsombrio.data.InventoryEntry
 import com.example.rpgsombrio.data.ItemEntry
@@ -164,6 +186,22 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
     var choosingSystem by remember { mutableStateOf(false) }
     var namingSystemId by rememberSaveable { mutableStateOf<String?>(null) }
     var newSheetId by rememberSaveable { mutableStateOf<String?>(null) }
+    val campaigns = remember { CampaignStore.load(prefs) }
+    val activeCampaignId = remember { CampaignStore.activeId(prefs) }
+    val userId = remember { CampaignStore.localUserId(prefs) }
+    var choosingWhere by remember { mutableStateOf(false) }
+    var namingCampaignId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Vindo da aba Campanha ("Criar personagem nesta campanha"): abre direto o nome do novo personagem.
+    LaunchedEffect(Unit) {
+        val pending = prefs.getString("pending_new_character_campaign", null)
+        if (pending != null) {
+            prefs.edit().remove("pending_new_character_campaign").apply()
+            campaigns.firstOrNull { it.id == pending && !it.isArchived }?.let { c ->
+                namingCampaignId = c.id
+                namingSystemId = c.systemId
+            }
+        }
+    }
     fun persist() = SheetStore.saveCharacters(prefs, sheets.toList())
     // Digitar regrava todas as fichas a cada letra; agrupa as gravações e garante a última ao sair da tela.
     val scope = rememberCoroutineScope()
@@ -191,19 +229,45 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
             onDelete = { deleteTarget = current }
         )
     } else {
-        val filtered = sheets.filter { s -> listOf(s.name, s.concept, s.origin).any { it.contains(query, ignoreCase = true) } }
+        // 0.10.5: o jogador vê só as próprias fichas; o mestre vê todas as da campanha dele. (Só a vista é filtrada:
+        // a lista completa continua sendo a que se grava.)
+        val seen = visibleSheets(sheets.toList(), campaigns, userId)
+        val filtered = seen.filter { s -> listOf(s.name, s.concept, s.origin).any { it.contains(query, ignoreCase = true) } }
         LazyColumn(
             modifier.fillMaxSize().padding(horizontal = 18.dp),
             contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             listHeader("Fichas", "Personagens", "Cada ficha segue o sistema a que está vinculada",
-                query, { query = it }, "Nova ficha") { choosingSystem = true }
+                query, { query = it }, "Nova ficha") {
+                if (campaigns.any { !it.isArchived }) choosingWhere = true else choosingSystem = true
+            }
             if (filtered.isEmpty()) item {
                 if (query.isBlank()) EmptyState("ficha", "Nenhuma ficha ainda", "Toque em Nova ficha para criar seu primeiro personagem.") else EmptyHint("Nenhum resultado para essa busca.")
             }
-            items(filtered, key = { it.id }) { sheet -> CharacterCard(sheet, prefs) { openId = sheet.id } }
+            val groups = if (filtered.isEmpty()) emptyList<SheetGroup>()
+            else groupSheetsByCampaign(filtered, campaigns, activeCampaignId, includeEmpty = query.isBlank())
+            groups.forEach { group ->
+                val groupKey = group.campaign?.id ?: "none"
+                item(key = "group-$groupKey") { CampaignGroupHeader(group.campaign, userId, prefs) }
+                if (group.sheets.isEmpty()) item(key = "empty-$groupKey") { EmptyHint("Nenhum personagem nesta campanha ainda.") }
+                items(group.sheets, key = { it.id }) { sheet -> CharacterCard(sheet, prefs) { openId = sheet.id } }
+            }
         }
+    }
+
+    if (choosingWhere) {
+        WhereToCreateDialog(
+            campaigns = campaigns.filter { !it.isArchived }.sortedByDescending { it.id == activeCampaignId },
+            prefs = prefs,
+            onCampaign = { c ->
+                choosingWhere = false
+                namingCampaignId = c.id
+                namingSystemId = c.systemId
+            },
+            onLoose = { choosingWhere = false; choosingSystem = true },
+            onDismiss = { choosingWhere = false }
+        )
     }
 
     if (choosingSystem) {
@@ -221,16 +285,25 @@ internal fun CharacterSheetsScreen(modifier: Modifier = Modifier) {
     }
 
     namingSystemId?.let { systemId ->
+        val targetCampaign = campaigns.firstOrNull { it.id == namingCampaignId }
         NewCharacterDialog(
             profile = remember(systemId) { SystemProfiles.resolve(prefs, systemId) },
+            campaignName = targetCampaign?.name,
             onCreate = { name, concept, origin ->
                 namingSystemId = null
-                val sheet = SheetStore.newCharacter(prefs, systemId, name).copy(concept = concept, origin = origin)
+                namingCampaignId = null
+                val created = SheetStore.newCharacter(prefs, systemId, name)
+                    .copy(concept = concept, origin = origin, campaignId = targetCampaign?.id.orEmpty(), ownerUserId = userId)
+                // 0.10.3: sistemas com regra de criação (D&D) abrem a calculadora; os demais seguem livres.
+                val sheet = startCreation(
+                    created, creationRuleFor(systemId, targetCampaign?.creationMethod.orEmpty()),
+                    SystemProfiles.resolve(prefs, systemId).attributes.map { it.key }
+                )
                 sheets.add(0, sheet); persist()
                 newSheetId = sheet.id
                 openId = sheet.id
             },
-            onDismiss = { namingSystemId = null }
+            onDismiss = { namingSystemId = null; namingCampaignId = null }
         )
     }
 
@@ -276,10 +349,91 @@ private fun CharacterCard(sheet: CharacterSheet, prefs: SharedPreferences, onCli
     }
 }
 
+/** Cabeçalho de cada grupo da lista: campanha (com o papel de quem usa o app) ou "Sem campanha". */
+@Composable
+private fun CampaignGroupHeader(campaign: Campaign?, userId: String, prefs: SharedPreferences) {
+    val subtitle = if (campaign == null) "Fichas soltas e rascunhos. Abra a ficha e use Mover para campanha."
+    else listOfNotNull(systemDisplayName(prefs, campaign.systemId), if (campaign.isArchived) "arquivada" else null).joinToString(" • ")
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                (campaign?.name ?: "Sem campanha").uppercase(), color = Accent, fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, modifier = Modifier.weight(1f, fill = false)
+            )
+            if (campaign != null) InfoPill(CampaignRole.label(campaignRoleOf(campaign, userId)))
+        }
+        Text(subtitle, color = Muted, fontSize = 12.sp)
+    }
+}
+
+/** "Nova ficha": escolhe a campanha (o sistema vem dela) ou cria solta. */
+@Composable
+private fun WhereToCreateDialog(
+    campaigns: List<Campaign>, prefs: SharedPreferences,
+    onCampaign: (Campaign) -> Unit, onLoose: () -> Unit, onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Onde criar o personagem?") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                items(campaigns, key = { it.id }) { c ->
+                    Column(Modifier.fillMaxWidth().clickable { onCampaign(c) }.padding(vertical = 10.dp, horizontal = 4.dp)) {
+                        Text(c.name, color = Ink, fontWeight = FontWeight.Bold)
+                        Text(systemDisplayName(prefs, c.systemId), color = Muted, fontSize = 13.sp)
+                    }
+                }
+                item {
+                    Column(Modifier.fillMaxWidth().clickable { onLoose() }.padding(vertical = 10.dp, horizontal = 4.dp)) {
+                        Text("Sem campanha", color = Ink, fontWeight = FontWeight.Bold)
+                        Text("Ficha solta ou rascunho. Você escolhe o sistema e pode mover para uma campanha depois.", color = Muted, fontSize = 13.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+/** "Mover para…": escolhe a campanha que recebe a ficha (nulo = tirar da campanha). */
+@Composable
+private fun CampaignPickerDialog(
+    campaigns: List<Campaign>, allowLoose: Boolean, prefs: SharedPreferences,
+    onPick: (Campaign?) -> Unit, onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Mover para…") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                items(campaigns, key = { it.id }) { c ->
+                    Column(Modifier.fillMaxWidth().clickable { onPick(c) }.padding(vertical = 10.dp, horizontal = 4.dp)) {
+                        Text(c.name, color = Ink, fontWeight = FontWeight.Bold)
+                        Text(systemDisplayName(prefs, c.systemId), color = Muted, fontSize = 13.sp)
+                    }
+                }
+                if (allowLoose) item {
+                    Column(Modifier.fillMaxWidth().clickable { onPick(null) }.padding(vertical = 10.dp, horizontal = 4.dp)) {
+                        Text("Sem campanha", color = Ink, fontWeight = FontWeight.Bold)
+                        Text("A ficha sai da campanha e mantém o sistema atual.", color = Muted, fontSize = 13.sp)
+                    }
+                }
+                if (campaigns.isEmpty() && !allowLoose) item {
+                    EmptyHint("Não há outra campanha para receber esta ficha. Crie uma na aba Campanha.")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
 /** Primeiro passo da criação: nome (obrigatório) e, se quiser, classe/origem. Depois a ficha abre no Perfil, para o visual. */
 @Composable
 private fun NewCharacterDialog(
     profile: SystemProfile,
+    campaignName: String?,
     onCreate: (name: String, concept: String, origin: String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -293,6 +447,7 @@ private fun NewCharacterDialog(
         title = { Text("Novo personagem") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (campaignName != null) Text("Campanha: $campaignName", color = Muted, fontSize = 13.sp)
                 Text("Sistema: ${profile.name}", color = Muted, fontSize = 13.sp)
                 TextInput("Nome", name, { name = it }, Modifier.fillMaxWidth().focusRequester(focus))
                 TextInput(profile.conceptLabel, concept, { concept = it })
@@ -319,6 +474,14 @@ private fun CharacterEditor(
     onDelete: () -> Unit
 ) {
     val profile = remember(sheet.systemId) { SystemProfiles.resolve(prefs, sheet.systemId) }
+    // Regra de criação de atributos (0.10.3): vem do sistema e do método que o mestre escolheu na campanha.
+    val ownCampaign = remember(sheet.campaignId) { CampaignStore.load(prefs).firstOrNull { it.id == sheet.campaignId } }
+    val localUserId = remember { CampaignStore.localUserId(prefs) }
+    val creationRule = remember(sheet.systemId, ownCampaign?.creationMethod) { creationRuleFor(sheet.systemId, ownCampaign?.creationMethod.orEmpty()) }
+    // Poderes do mestre (0.10.5): só o mestre da campanha liga a edição livre, que ignora as travas desta ficha.
+    val isCampaignMaster = canUseFreeEdit(ownCampaign, localUserId)
+    var freeEditOn by rememberSaveable(sheet.id) { mutableStateOf(false) }
+    val freeEdit = isCampaignMaster && freeEditOn
     val engine = remember { RpgEngine() }
     val log = remember { mutableStateListOf<RollLine>() }
     val library = remember { SheetStore.loadItems(prefs) }
@@ -360,6 +523,14 @@ private fun CharacterEditor(
             item {
                 SheetHeader(sheet, profile, armorClass, onOpenProfile = { savedTab = "Perfil" }, onChange = onChange, onInitiative = { rollInitiativeToLog() })
             }
+            // 0.10.4: o mestre subiu o nível e o jogador ainda não concluiu o assistente.
+            if (levelRulesFor(sheet.systemId) != null && pendingLevelUp(sheet) != null) item {
+                LevelUpBanner(sheet, profile, ownCampaign, onChange)
+            }
+            // 0.10.5: o mestre concedeu pontos de atributo extras e o jogador ainda não distribuiu.
+            if (levelRulesFor(sheet.systemId) != null && pendingAsiGrants(sheet).isNotEmpty()) item {
+                AsiGrantBanner(sheet, profile, onChange)
+            }
             stickyHeader {
                 Column(Modifier.fillMaxWidth().background(Night)) {
                     if (showMini) MiniHeader(sheet, profile, armorClass) { savedTab = "Perfil" }
@@ -392,20 +563,44 @@ private fun CharacterEditor(
                     item { ResourcesSection(sheet, profile, onChange) }
                     item {
                         val shownAttrs = profile.visibleAttributes(sheet)
-                        val attrSummary = if (shownAttrs.size == profile.attributes.size) "${profile.attributes.size} atributos"
-                            else "${shownAttrs.size} de ${profile.attributes.size} atributos"
+                        val creating = inCreation(sheet, creationRule)
+                        val ruleLocked = attributesLocked(sheet, creationRule)
+                        val locked = attributesLockedFor(sheet, creationRule, freeEdit)
+                        val attrSummary = when {
+                            creating -> "Em criação"
+                            locked -> "${profile.attributes.size} atributos • travados"
+                            ruleLocked -> "${profile.attributes.size} atributos • edição livre"
+                            shownAttrs.size == profile.attributes.size -> "${profile.attributes.size} atributos"
+                            else -> "${shownAttrs.size} de ${profile.attributes.size} atributos"
+                        }
                         CollapsibleSection("ATRIBUTOS", summary = attrSummary) {
-                            if (shownAttrs.isEmpty() && profile.attributes.isNotEmpty()) {
-                                EmptyHint("Nenhum atributo visível nesta ficha. Use \"Escolher atributos\" para mostrar.")
+                            if (creating) {
+                                CreationPanel(sheet, profile, creationRule, onChange)
                             } else {
-                                AttributeGrid(
-                                    profile.copy(attributes = shownAttrs), sheet.attributes,
-                                    onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) }
-                                ) { key, value ->
-                                    onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                                if (shownAttrs.isEmpty() && profile.attributes.isNotEmpty()) {
+                                    EmptyHint("Nenhum atributo visível nesta ficha. Use \"Escolher atributos\" para mostrar.")
+                                } else {
+                                    AttributeGrid(
+                                        profile.copy(attributes = shownAttrs), sheet.attributes,
+                                        onRoll = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) },
+                                        locked = locked
+                                    ) { key, value ->
+                                        onChange(sheet.copy(attributes = sheet.attributes + (key to value)))
+                                    }
                                 }
+                                if (ruleLocked && freeEdit) {
+                                    EmptyHint("Edição livre do mestre ligada: as travas desta ficha estão ignoradas.")
+                                }
+                                if (locked) {
+                                    EmptyHint("Criação finalizada (${CreationMethod.label(creationRule.method)}): os atributos estão travados.")
+                                    if (canReopenCreation(ownCampaign, localUserId)) {
+                                        TextButton(onClick = {
+                                            onChange(reopenCreation(sheet, creationRule, profile.attributes.map { it.key }))
+                                        }) { Text("Reabrir criação") }
+                                    }
+                                }
+                                SheetAttributeChooser(sheet, profile, onChange)
                             }
-                            SheetAttributeChooser(sheet, profile, onChange)
                         }
                     }
                     if (profile.usesProficiency && !profile.isPool) item {
@@ -444,6 +639,9 @@ private fun CharacterEditor(
                 }
                 else -> {
                     item { IdentitySection(sheet, profile, prefs, onChange) }
+                    if (isCampaignMaster) item {
+                        MasterSheetTools(sheet, profile, creationRule, freeEdit, { freeEditOn = it }, onChange)
+                    }
                     item {
                         EditorCard("PAPEL NA MESA", "Define a interface da arena: Jogador usa o deck de cartas, Mestre controla a cena") {
                             RoleSelector(sheet.role, { onChange(sheet.copy(role = it)) })
@@ -636,6 +834,12 @@ private fun RollPanel(
 @Composable
 private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs: SharedPreferences, onChange: (CharacterSheet) -> Unit) {
     var switching by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
+    var pendingMove by remember { mutableStateOf<Campaign?>(null) }
+    val campaigns = remember { CampaignStore.load(prefs) }
+    val userId = remember { CampaignStore.localUserId(prefs) }
+    val currentCampaign = campaigns.firstOrNull { it.id == sheet.campaignId }
+    val otherCampaigns = campaigns.filter { !it.isArchived && it.id != sheet.campaignId }
     val armor = armorClassBreakdown(sheet, remember { SheetStore.loadItems(prefs) })
     CollapsibleSection("IDENTIDADE", summary = listOf(sheet.name, sheet.concept).filter { it.isNotBlank() }.joinToString(" • ")) {
         PortraitField(sheet.imageUri, sheet.name) { onChange(sheet.copy(imageUri = it)) }
@@ -644,8 +848,18 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
             Column(Modifier.weight(1f)) {
                 Text("Sistema", color = Muted, fontSize = 13.sp)
                 Text(systemDisplayName(prefs, sheet.systemId), color = Ink, fontWeight = FontWeight.SemiBold)
+                if (currentCampaign != null) Text("Definido pela campanha", color = Muted, fontSize = 12.sp)
             }
-            TextButton(onClick = { switching = true }) { Text("Trocar sistema") }
+            if (currentCampaign == null) TextButton(onClick = { switching = true }) { Text("Trocar sistema") }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Campanha", color = Muted, fontSize = 13.sp)
+                Text(currentCampaign?.name ?: "Sem campanha", color = Ink, fontWeight = FontWeight.SemiBold)
+            }
+            if (currentCampaign != null || otherCampaigns.isNotEmpty()) {
+                TextButton(onClick = { moving = true }) { Text(if (currentCampaign == null) "Mover para campanha" else "Mover") }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextInput(profile.conceptLabel, sheet.concept, { onChange(sheet.copy(concept = it)) }, Modifier.weight(1f))
@@ -654,7 +868,13 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
         if (profile.usesLevels || profile.usesProficiency || profile.usesArmorClass) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (profile.usesLevels) {
-                    NumberField("Nível", sheet.level, { level ->
+                    if (levelLocked(sheet, currentCampaign)) {
+                        // 0.10.4: em campanha com regra de nível, só o mestre muda o nível (botões abaixo).
+                        Column(Modifier.weight(1f)) {
+                            Text("Nível", color = Muted, fontSize = 12.sp)
+                            Text(sheet.level.toString(), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else NumberField("Nível", sheet.level, { level ->
                         val prof = if (profile.autoProficiency) 2 + (maxOf(level, 1) - 1) / 4 else sheet.proficiencyBonus
                         onChange(sheet.copy(level = level.coerceAtLeast(0), proficiencyBonus = prof))
                     }, Modifier.weight(1f))
@@ -666,6 +886,14 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
                     NumberField(if (armor.modified) "CA base" else "CA", sheet.armorClass, { onChange(sheet.copy(armorClass = it)) }, Modifier.weight(1f))
                 }
             }
+            if (levelLocked(sheet, currentCampaign)) {
+                Text("O nível desta campanha só muda por ação do mestre.", color = Muted, fontSize = 12.sp)
+                if (currentCampaign != null && campaignRoleOf(currentCampaign, userId) == CampaignRole.MASTER) {
+                    MasterLevelButtons(sheet, profile, onChange)
+                }
+                val labels = profile.attributes.associate { it.key to it.abbr }
+                sheet.levelHistory.takeLast(3).forEach { Text(levelEntrySummary(it, labels), color = Muted, fontSize = 12.sp) }
+            }
             if (profile.usesArmorClass && armor.modified) {
                 Text("CA efetiva ${armor.total} (${armor.text}) — vale nas rolagens e no combate.", color = Accent, fontSize = 12.sp)
             }
@@ -676,6 +904,34 @@ private fun IdentitySection(sheet: CharacterSheet, profile: SystemProfile, prefs
                 NumberField("XP", sheet.experience, { onChange(sheet.copy(experience = it.coerceAtLeast(0))) }, Modifier.weight(1f))
             }
         }
+    }
+    if (moving) {
+        CampaignPickerDialog(
+            campaigns = otherCampaigns, allowLoose = currentCampaign != null, prefs = prefs,
+            onPick = { picked ->
+                moving = false
+                if (sheetMoveChangesSystem(sheet, picked)) pendingMove = picked
+                else onChange(SheetStore.moveToCampaign(prefs, sheet, picked))
+            },
+            onDismiss = { moving = false }
+        )
+    }
+    pendingMove?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingMove = null },
+            title = { Text("Mover para ${target.name}?") },
+            text = {
+                Text(
+                    "A ficha é do sistema ${systemDisplayName(prefs, sheet.systemId)} e a campanha usa ${systemDisplayName(prefs, target.systemId)}. " +
+                        "Nada é apagado: atributos e recursos do sistema atual ficam guardados e voltam se a ficha for vinculada a ele de novo, " +
+                        "mas as perícias dele saem da vista."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onChange(SheetStore.moveToCampaign(prefs, sheet, target)); pendingMove = null }) { Text("Mover") }
+            },
+            dismissButton = { TextButton(onClick = { pendingMove = null }) { Text("Cancelar") } }
+        )
     }
     if (switching) {
         SystemPickerDialog(

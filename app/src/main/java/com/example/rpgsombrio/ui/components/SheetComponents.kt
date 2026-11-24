@@ -308,6 +308,7 @@ internal fun SystemPickerDialog(
 internal fun AttributeGrid(
     profile: SystemProfile, values: Map<String, Int>,
     onRoll: ((SheetAttr) -> Unit)? = null,
+    locked: Boolean = false,
     onChange: (String, Int) -> Unit
 ) {
     if (profile.attributes.isEmpty()) {
@@ -319,7 +320,18 @@ internal fun AttributeGrid(
             row.forEach { attr ->
                 val value = values[attr.key] ?: attr.default
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    NumberField(attr.abbr, value, { onChange(attr.key, attr.clamp(it)) }, Modifier.fillMaxWidth())
+                    if (locked) {
+                        // Ficha finalizada (0.10.3): o valor aparece, mas não dá para editar.
+                        Column(
+                            Modifier.fillMaxWidth().background(Panel2, RoundedCornerShape(10.dp)).padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(attr.abbr, color = Muted, fontSize = 12.sp)
+                            Text(value.toString(), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        NumberField(attr.abbr, value, { onChange(attr.key, attr.clamp(it)) }, Modifier.fillMaxWidth())
+                    }
                     if (attr.hasModifier) {
                         Text(signed(attr.modifierOf(value)), color = Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
