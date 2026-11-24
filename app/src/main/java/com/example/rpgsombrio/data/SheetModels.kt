@@ -17,7 +17,9 @@ data class SkillEntry(
     val proficient: Boolean = false,
     val extra: Int = 0,
     /** Sistema a que a perícia pertence. Vazio (fichas antigas) = aparece em qualquer sistema. */
-    val systemId: String = ""
+    val systemId: String = "",
+    /** Perícia fixada na aba Jogar (0.9.20). Fichas antigas não têm o campo e abrem sem favoritas. */
+    val favorite: Boolean = false
 )
 
 /** Vale para o sistema [sid]? Registros sem sistema valem para todos. */
@@ -386,9 +388,9 @@ fun buildNewCharacter(profile: SystemProfile, id: String, name: String): Charact
 fun SystemProfile.visibleAttributes(sheet: CharacterSheet): List<SheetAttr> =
     attributes.filter { it.key !in sheet.hiddenAttributes }
 
-/** Aba em que a ficha abre: o Perfil para ficha recém-criada ou sem nome; senão a Ficha. */
+/** Aba em que a ficha abre: o Perfil para ficha recém-criada ou sem nome; senão a Jogar (consulta de mesa). */
 fun initialSheetTab(startOnProfile: Boolean, name: String): String =
-    if (startOnProfile || name.isBlank()) "Perfil" else "Ficha"
+    if (startOnProfile || name.isBlank()) "Perfil" else "Jogar"
 
 fun shortResourceLabel(resource: SheetResource): String = when (resource.key) {
     "hp" -> "PV"
@@ -525,7 +527,7 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
         resources.forEach { (k, v) -> o.put(k, JSONObject().put("current", v.current).put("max", v.max)) }
     })
     .put("skills", JSONArray().also { a ->
-        skills.forEach { a.put(JSONObject().put("name", it.name).put("attr", it.attributeKey).put("prof", it.proficient).put("extra", it.extra).put("system", it.systemId)) }
+        skills.forEach { a.put(JSONObject().put("name", it.name).put("attr", it.attributeKey).put("prof", it.proficient).put("extra", it.extra).put("system", it.systemId).put("fav", it.favorite)) }
     })
     .put("attacks", JSONArray().also { a ->
         attacks.forEach { a.put(JSONObject().put("name", it.name).put("bonus", it.bonus).put("damage", it.damage)) }
@@ -563,7 +565,7 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
         }
     },
     skills = o.optJSONArray("skills").objects().map {
-        SkillEntry(it.optString("name"), it.optString("attr"), it.optBoolean("prof"), it.optInt("extra"), it.optString("system"))
+        SkillEntry(it.optString("name"), it.optString("attr"), it.optBoolean("prof"), it.optInt("extra"), it.optString("system"), it.optBoolean("fav"))
     },
     attacks = o.optJSONArray("attacks").objects().map {
         AttackEntry(it.optString("name"), it.optString("bonus"), it.optString("damage"))

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.20 — Aba Jogar (ficha de consulta para a mesa)
+A ficha do jogador agora abre num painel só de leitura, com os bônus já calculados e à vista. Cada item toca para rolar. Veja `MUDANCAS-0.9.20.md`. versionCode 29.
+
 ## 0.9.19 — Bestiário SRD
 Importação automática (uma vez) e botão para importar 28 criaturas do SRD 5.1 (traduzidas, com ações roláveis) no Bestiário, sem duplicar ao repetir. Veja `MUDANCAS-0.9.19.md`. versionCode 28.
 

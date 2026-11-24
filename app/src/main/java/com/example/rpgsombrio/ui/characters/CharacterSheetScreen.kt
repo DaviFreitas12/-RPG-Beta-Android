@@ -103,6 +103,8 @@ import com.example.rpgsombrio.engine.AttackOption
 import com.example.rpgsombrio.engine.RollLine
 import com.example.rpgsombrio.engine.RpgEngine
 import com.example.rpgsombrio.engine.armorClassBreakdown
+import com.example.rpgsombrio.engine.attackModifiers
+import com.example.rpgsombrio.engine.attributeValue
 import com.example.rpgsombrio.engine.attributeVariable
 import com.example.rpgsombrio.engine.castSpell
 import com.example.rpgsombrio.engine.characterAttacks
@@ -324,11 +326,18 @@ private fun CharacterEditor(
     val variables = characterVariables(sheet, profile, library)
     val defense = targetDefense.takeIf { it > 0 }
     val armorClass = remember(sheet.inventory, sheet.armorClass) { effectiveArmorClass(sheet, library) }
+    val allSpells = remember { SheetStore.loadSpells(prefs) }
+    val linkedSpells = sheet.spellIds.mapNotNull { id -> allSpells.firstOrNull { it.id == id } }
+        .filter { it.fitsSystem(sheet.systemId) }
+        .sortedWith(compareBy<SpellEntry>({ it.level }, { it.name.lowercase() }))
+    // As condições da ficha valem nos ataques: Envenenado, Caído etc. rolam com desvantagem sozinhos.
+    val attackMode = attackModifiers(sheet.conditions, emptyList()).mode
 
-    // Abas: o que se consulta jogando (Ficha, Combate, Itens) separado do que se monta uma vez (Perfil).
-    val tabs = listOf("Ficha", "Combate") + (if (profile.usesInventory) listOf("Itens") else emptyList()) + listOf("Perfil")
+    // Abas: Jogar é o painel de consulta da mesa (só leitura, tudo calculado); Editar guarda os campos da ficha;
+    // Combate, Itens e Perfil seguem como antes.
+    val tabs = listOf("Jogar", "Editar", "Combate") + (if (profile.usesInventory) listOf("Itens") else emptyList()) + listOf("Perfil")
     var savedTab by rememberSaveable(sheet.id) { mutableStateOf(initialSheetTab(startOnProfile, sheet.name)) }
-    val tab = if (savedTab in tabs) savedTab else "Ficha"
+    val tab = if (savedTab in tabs) savedTab else "Jogar"
     val listState = rememberLazyListState()
     // Ao trocar de aba, volta ao topo do conteúdo (mas não ao topo da página, para não reabrir o cabeçalho).
     LaunchedEffect(tab) { if (listState.firstVisibleItemIndex > 2) listState.scrollToItem(2) }
@@ -367,7 +376,19 @@ private fun CharacterEditor(
                 }
             }
             when (tab) {
-                "Ficha" -> {
+                "Jogar" -> playTabItems(
+                    sheet, profile, library, linkedSpells, onChange,
+                    onRollAttr = { attr -> log.push(rollAttributeCheck(engine, profile, sheet.attributes, attr)) },
+                    onRollSave = { attr -> log.push(rollSaveCheck(engine, sheet, profile, attr)) },
+                    onRollSkill = { skill -> log.push(rollSkillCheck(engine, sheet, profile, skill)) },
+                    onRollAttack = { option -> log.push(rollOption(engine, option, variables, profile, defense, mode = attackMode).line) },
+                    onCast = { spell ->
+                        val outcome = castSpell(engine, spell, sheet, profile)
+                        log.push(outcome.line)
+                        if (outcome.cast) onChange(outcome.sheet)
+                    }
+                )
+                "Editar" -> {
                     item { ResourcesSection(sheet, profile, onChange) }
                     item {
                         val shownAttrs = profile.visibleAttributes(sheet)
@@ -396,10 +417,9 @@ private fun CharacterEditor(
                     if (profile.usesTraits) item { TraitsSection(sheet, profile, prefs, onChange) }
                 }
                 "Combate" -> {
-                    item { RollPanel(sheet, profile, prefs, engine, variables, targetDefense, { targetDefense = it }, log) }
                     if (profile.usesAttacks) item {
                         AttacksSection(sheet, library, onChange, onRoll = { option ->
-                            log.push(rollOption(engine, option, variables, profile, defense).line)
+                            log.push(rollOption(engine, option, variables, profile, defense, mode = attackMode).line)
                         })
                     }
                     if (profile.usesSpells) item {
@@ -416,6 +436,8 @@ private fun CharacterEditor(
                             onConditionsChange = { onChange(sheet.copy(conditionImmunities = it)) }
                         )
                     }
+                    // Rolagens livres (fórmula, CD, CA do alvo) é ferramenta de mestre: fica depois do que o jogador usa.
+                    item { RollPanel(sheet, profile, prefs, engine, variables, targetDefense, { targetDefense = it }, log) }
                 }
                 "Itens" -> {
                     item { InventorySection(sheet, prefs, onChange) }
@@ -527,16 +549,27 @@ private fun SheetHeader(
     }
 }
 
-/** Versão compacta do cabeçalho, presa ao topo enquanto se rola a ficha. */
+/** Versão compacta do cabeçalho, presa ao topo enquanto se rola a ficha: nome, PV, CA e os modificadores. */
 @Composable
 private fun MiniHeader(sheet: CharacterSheet, profile: SystemProfile, armorClass: Int, onOpenProfile: () -> Unit) {
     val vital = profile.resources.firstOrNull()
     val value = vital?.let { sheet.resources[it.key] ?: ResourceValue(it.defaultMax, it.defaultMax) }
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        HeaderAvatar(sheet, 36.dp, onOpenProfile)
-        Text(sheet.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
-        if (vital != null && value != null) InfoPill("${shortResourceLabel(vital)} ${value.current}/${value.max}")
-        if (profile.usesArmorClass) InfoPill("CA $armorClass")
+    val mods = profile.visibleAttributes(sheet).filter { it.hasModifier }.take(6)
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HeaderAvatar(sheet, 36.dp, onOpenProfile)
+            Text(sheet.name.ifBlank { "Sem nome" }, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+            if (vital != null && value != null) InfoPill("${shortResourceLabel(vital)} ${value.current}/${value.max}")
+            if (profile.usesArmorClass) InfoPill("CA $armorClass")
+        }
+        if (mods.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                mods.forEach { attr ->
+                    Text("${attr.abbr} ${signed(attr.modifierOf(attributeValue(sheet.attributes, attr)))}",
+                        color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
     }
 }
 
