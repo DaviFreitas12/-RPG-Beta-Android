@@ -174,10 +174,7 @@ internal fun buildSprite(L: CharacterLook): IntArray {
     if (hs == 23) { // mullet: nuca alongada e laterais curtas
         g.rect(x0 - 1, y0 + 3, x0 + 1, ty + 11, hair)
         g.rect(x1 - 1, y0 + 3, x1 + 1, ty + 11, hair)
-        val mulletMat = g.newId()
-        for (yy in ty + 5 until minOf(SPRITE_H, ty + 12)) {
-            g.put(cx + ((yy / 2) % 2), yy, if (yy % 3 == 0) hairD else hair, mulletMat)
-        }
+        for (yy in ty + 5 until minOf(SPRITE_H, ty + 12)) g.put(cx + ((yy / 2) % 2), yy, if (yy % 3 == 0) hairD else hair)
     }
     if (hs == 29) { // cabelo longo preso atrás
         g.rect(x0 - 1, y0 + 2, x0 + 1, ty + 8, hair)

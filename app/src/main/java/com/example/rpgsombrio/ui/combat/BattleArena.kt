@@ -644,7 +644,7 @@ internal fun BattleArenaScreen(
     var ranged by rememberSaveable { mutableStateOf(false) }
     var manualAttack by rememberSaveable { mutableStateOf("1d20 + FOR + PROF") }
     var manualDamage by rememberSaveable { mutableStateOf("1d8 + FOR") }
-    var animationsOn by remember { mutableStateOf(prefs.getBoolean("engine_anim", true)) }
+    var animationsOn by remember { mutableStateOf(prefs.getBoolean("engine_anim", false)) }
     var event by remember { mutableStateOf<BattleEvent?>(null) }
     var counter by remember { mutableStateOf(0) }
     var busy by remember { mutableStateOf(false) }

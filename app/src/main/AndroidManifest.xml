@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Mesa em rede (0.9.16): conexão TCP entre os celulares da mesa, na rede local. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Mesa em rede (0.9.17): o celular do jogador vibra quando chega a vez dele. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

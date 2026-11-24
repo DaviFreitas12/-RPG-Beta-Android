@@ -48,7 +48,7 @@ internal fun RpgApp() {
                     val tabs = listOf(
                         Triple("Início", "Início", Icons.Default.Home),
                         Triple("Personagens", "Fichas", Icons.Default.Person),
-                        Triple("Motor", "Dados", Icons.Default.Casino),
+                        Triple("Motor", "Mesa", Icons.Default.Casino),
                         Triple("Biblioteca", "Acervo", Icons.Default.MenuBook),
                         Triple("Campanha", "Campanha", Icons.Default.Map)
                     )

@@ -73,7 +73,7 @@ internal fun HomeScreen(modifier: Modifier = Modifier, onNavigate: (String) -> U
                     listOf(
                         "Escolha o sistema em Campanha",
                         "Crie seu personagem em Fichas",
-                        "Role dados e controle o combate em Dados"
+                        "Controle o combate na Mesa"
                     ).forEachIndexed { i, step ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(Modifier.size(24.dp).clip(CircleShape).background(Brand.copy(alpha = .18f)), contentAlignment = Alignment.Center) {
@@ -93,11 +93,10 @@ internal fun HomeScreen(modifier: Modifier = Modifier, onNavigate: (String) -> U
         ) { Text(if (hasCharacters) "Abrir personagens" else "Criar primeira ficha", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(onClick = { onNavigate("Motor") }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-            Text("Rolar dados e combate")
+            Text("Abrir a mesa (combate e dados)")
         }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = { onNavigate("Studio") }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-            Text("Character Studio · Criar aparência")
+        TextButton(onClick = { onNavigate("Studio") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Character Studio", color = Muted)
         }
         Spacer(Modifier.height(12.dp))
     }

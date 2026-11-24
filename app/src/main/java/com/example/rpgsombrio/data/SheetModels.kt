@@ -670,6 +670,7 @@ private fun decodeItem(o: JSONObject): ItemEntry = ItemEntry(
 object SheetStore {
     private const val CHARACTERS = "sheets_characters"
     private const val BESTIARY = "sheets_bestiary"
+    private const val SRD_IMPORTED = "srd_bestiary_imported"
     private const val SPELLS = "sheets_spells"
     private const val ITEMS = "sheets_items"
     private const val TRAITS = "sheets_traits"
@@ -760,8 +761,8 @@ object SheetStore {
     fun saveCharacters(prefs: SharedPreferences, list: List<CharacterSheet>) =
         save(prefs, CHARACTERS, list.map { it.toJson() })
 
-    fun loadMonsters(prefs: SharedPreferences): List<MonsterSheet> =
-        load(prefs, BESTIARY, "records_bestiary", ::decodeMonster,
+    fun loadMonsters(prefs: SharedPreferences): List<MonsterSheet> {
+        val loaded = load(prefs, BESTIARY, "records_bestiary", ::decodeMonster,
             migrate = { o ->
                 MonsterSheet(
                     id = o.optString("id").ifBlank { newId() }, name = o.optString("name"),
@@ -771,6 +772,14 @@ object SheetStore {
                 )
             },
             defaults = { demoMonsters(prefs) })
+        // 0.9.19: na primeira abertura, traz o catálogo SRD. Roda uma vez só (marcado em prefs), então criaturas
+        // apagadas depois não voltam; o botão do Bestiário continua permitindo importar de novo à mão.
+        if (prefs.getBoolean(SRD_IMPORTED, false)) return loaded
+        val merged = loaded + missingSrdMonsters(loaded)
+        saveMonsters(prefs, merged)
+        prefs.edit().putBoolean(SRD_IMPORTED, true).apply()
+        return merged
+    }
 
     fun saveMonsters(prefs: SharedPreferences, list: List<MonsterSheet>) =
         save(prefs, BESTIARY, list.map { it.toJson() })

@@ -44,3 +44,11 @@ Autenticação, campanhas multiusuário com convite, regras de autorização no 
 1. Compilar, corrigir o que a interface acusar, gerar o wrapper e limpar o repositório (itens 1 e 2).
 2. Exportar/importar backup (item 4).
 3. Magias e ações com CD próprio, metade do dano e repetição de salvaguarda (3.3 e 3.4).
+
+
+## 7. Mesa em rede — próximos passos (0.9.16)
+- **QR code** com endereço e código (hoje o jogador digita o IP). Exige uma biblioteca de QR (ex.: ZXing) ou o ML Kit.
+- **Serviço em primeiro plano** no mestre para o servidor sobreviver com a tela apagada ou o app em segundo plano.
+- **Condições vindas do jogador** (hoje só o mestre marca) e salvaguardas contra a morte no celular do jogador.
+- **Descoberta automática** (NSD/mDNS) como atalho opcional ao IP digitado; em Android costuma ser instável.
+- **Teste real em dois ou mais aparelhos**: a camada de rede foi testada em localhost, mas nunca em Wi-Fi nem em zona Wi-Fi.

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.19 — Bestiário SRD
+Importação automática (uma vez) e botão para importar 28 criaturas do SRD 5.1 (traduzidas, com ações roláveis) no Bestiário, sem duplicar ao repetir. Veja `MUDANCAS-0.9.19.md`. versionCode 28.
+
+## 0.9.16 — Mesa em rede (celulares conectados pela rede local)
+O Modo mesa (0.9.15) deixou cada celular com a própria lista. Agora o celular do mestre vira o servidor da mesa e os jogadores se conectam a ele.
+- **Mestre**: no Motor → Combate, **Abrir mesa** mostra o endereço (IP) e um código de 4 dígitos. A tela fica ligada enquanto a mesa estiver aberta. Jogadores que entram aparecem na lista de iniciativa; dano e cura que eles pedem são aplicados lá.
+- **Jogador**: **Entrar na mesa** com endereço, código e iniciativa. Vê a ordem de iniciativa, **"É A SUA VEZ!"**, o PV dos personagens e, das criaturas, **só o estado** (Ileso, Ferido, Muito ferido, Quase morto, Derrotado). Dano/cura e iniciativa do próprio personagem vão para o mestre. Se a rede cair, reconecta sozinho.
+- O mestre é a fonte da verdade; PV, CA e PV temporários de criaturas nunca saem do celular dele (testado).
+- Funciona sem internet. Em Wi-Fi que isola aparelhos (hotel, escola, lanchonete) use a zona Wi-Fi do celular do mestre.
+- Sem bibliotecas novas: TCP puro, uma mensagem por linha (`engine/TableSync.kt` protocolo, `engine/TableTransport.kt` rede, `ui/combat/TableSession.kt` estado do aparelho). Permissão `INTERNET` adicionada ao manifesto.
+- Mensagens de jogadores que chegam com o Motor fechado ficam numa fila e são aplicadas ao reabrir.
+- Testes: `TableSyncTest` (protocolo) e `TableTransportTest` (sockets reais em localhost).
+- Limites desta versão: sem QR code (digita-se o IP), condições são marcadas só pelo mestre, e o servidor não roda em segundo plano (se o Android suspender o app do mestre, a mesa cai e os jogadores reconectam quando ele voltar). Versão 0.9.16 (versionCode 25). A interface nova **não foi compilada** na análise.
+
+## 0.9.15 — Modo mesa (combate para jogo presencial)
+Na primeira sessão real o combate atrasava a mesa: cada ataque travava ~3 s em animação, o app rolava os dados no lugar de quem tinha dado na mão e o mestre precisava de vários toques por ataque. O novo modo trata o dado físico como regra.
+- **Modo mesa** (`TableModeScreen`), padrão na aba Combate do Motor; a chave "Modo mesa" volta para a arena animada.
+- **Mestre**: lista de iniciativa com PV, CA e condições; botão grande **Próximo turno**; toque numa linha para dano/cura (−10 −5 −1 +1 +5 +10 ou outro valor), **Iniciativa** (valor digitado), **Condições** e remover. **Adicionar todos os personagens** de uma vez (iniciativa "?" até informar).
+- **Jogador**: **Entrar na luta** com a iniciativa tirada no dado; PV e condições do próprio personagem; cartas de ação que mostram o bônus ("Acerto +5 • Dano 1d8 +3") e somam ao d20 digitado, avisando 20 natural (crítico) e 1 natural.
+- O app não rola nada no Modo mesa. Sem animação e sem botão bloqueado.
+- A animação da arena agora vem **desligada** por padrão (quem já escolheu mantém a escolha).
+- Cada celular guarda a própria lista: sem sincronização entre aparelhos (continua nas pendências).
+- Lógica pura em `engine/TableMode.kt` (`flatPart`, `tableAttack`, `tableAttackRoll`, `tableDamageTotal`); testes em `TableModeTest`.
+- Versão 0.9.15 (versionCode 24). A interface nova **não foi compilada** na análise: rode `gradle assembleDebug` e passe pelo fluxo antes de levar à mesa.
+
 ## 0.9.14 — Cartas de combate e papéis Mestre/Jogador
 - **Cartas de ação** (`CombatAction`, `CombatActionCard`): cada golpe, ataque ou habilidade vira uma carta com nome, tipo de dano, bônus de acerto e fórmula de dano.
 - **Deck tático** (`CombatDeckScreen`): o jogador vê a "mão" do personagem em duas colunas; um toque numa carta rola ataque e dano no motor de regras.

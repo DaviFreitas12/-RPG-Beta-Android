@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.rpgsombrio.engine.EncounterEntry
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Casino
@@ -38,6 +41,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,10 +66,15 @@ import com.example.rpgsombrio.data.adjustedDamage
 import com.example.rpgsombrio.data.damageMultiplierFor
 import com.example.rpgsombrio.data.fitsSystem
 import com.example.rpgsombrio.data.shortResourceLabel
+import com.example.rpgsombrio.engine.ClientMsg
 import com.example.rpgsombrio.engine.Combatant
+import com.example.rpgsombrio.engine.CombatantSource
 import com.example.rpgsombrio.engine.RollLine
 import com.example.rpgsombrio.engine.RpgEngine
 import com.example.rpgsombrio.engine.attributeVariable
+import com.example.rpgsombrio.engine.buildSnapshot
+import com.example.rpgsombrio.engine.encode
+import com.example.rpgsombrio.engine.helloToCombatant
 import com.example.rpgsombrio.engine.baseDie
 import com.example.rpgsombrio.engine.characterCombatant
 import com.example.rpgsombrio.engine.characterVariables
@@ -90,6 +100,7 @@ import com.example.rpgsombrio.ui.components.InfoPill
 import com.example.rpgsombrio.ui.components.NumberField
 import com.example.rpgsombrio.ui.components.RollLogBar
 import com.example.rpgsombrio.ui.components.TextInput
+import com.example.rpgsombrio.ui.components.ToggleRow
 import com.example.rpgsombrio.ui.components.push
 import com.example.rpgsombrio.ui.theme.Accent
 import com.example.rpgsombrio.ui.theme.Brand
@@ -119,19 +130,28 @@ internal fun PickButton(label: String, options: List<String>, modifier: Modifier
 }
 
 /**
- * Tela do Motor (0.9.1): as rolagens usam os valores de uma ficha ou criatura escolhida (ou de uma lista manual),
- * o sistema da ficha define fórmulas, dados e reservas, e o combate lê e grava os PV dos personagens.
+ * Tela da Mesa (0.9.17), antes "Motor". O estado do combate vive no [CombatController] (assim a mesa em rede continua
+ * funcionando em qualquer aba). Aqui ficam só a tela e as rolagens avulsas.
+ *
+ * Aba Combate (padrão): quem age agora no topo, próximos em ordem, encontros preparados, adicionar à batalha, rede.
+ * O botão de passar o turno e o de desfazer ficam fixos no rodapé.
  */
 @Composable
 internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
-    val engine = remember { RpgEngine() }
-    // Lista observável: trocar o papel (Jogador/Mestre) de uma ficha atualiza a arena na hora.
+    val controller = CombatController
+    remember { controller.init(prefs); TableSession.bind(context); true }
+    // Ao abrir a tela, traz o que outras telas gravaram (Bestiário, fichas) e os PV atuais das fichas.
+    LaunchedEffect(Unit) { controller.reload() }
+
+    val engine = controller.engine
+    val log = controller.log
+    val combatants = controller.combatants
+    // Lista observável: trocar o papel (Jogador/Mestre) de uma ficha atualiza a tela na hora.
     val characters = remember { mutableStateListOf<CharacterSheet>().apply { addAll(SheetStore.loadCharacters(prefs)) } }
     val monsters = remember { SheetStore.loadMonsters(prefs) }
     val library = remember { SheetStore.loadItems(prefs) }
-    val log = remember { mutableStateListOf<RollLine>() }
 
     var sourceKey by remember { mutableStateOf(prefs.getString("engine_source", null) ?: characters.firstOrNull()?.let { CHARACTER_PREFIX + it.id } ?: MANUAL_SOURCE) }
     var manualVars by remember { mutableStateOf(prefs.getString("engine_manual_vars", "FOR=3, DES=2, PROF=2") ?: "") }
@@ -143,7 +163,6 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     var actorName by remember { mutableStateOf("") }
     var actorHp by remember { mutableStateOf(20) }
     var actorDefense by remember { mutableStateOf(13) }
-    var actorInitiativeBonus by remember { mutableStateOf(0) }
 
     val sourceCharacter = if (sourceKey.startsWith(CHARACTER_PREFIX)) characters.firstOrNull { it.id == sourceKey.removePrefix(CHARACTER_PREFIX) } else null
     val sourceMonster = if (sourceKey.startsWith(MONSTER_PREFIX)) monsters.firstOrNull { it.id == sourceKey.removePrefix(MONSTER_PREFIX) } else null
@@ -167,73 +186,10 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
         SheetStore.saveCharacters(prefs, characters.toList())
     }
 
-    val combatants = remember {
-        mutableStateListOf<Combatant>().apply { addAll(CombatStore.refreshFromSheets(prefs, CombatStore.load(prefs))) }
-    }
-    // O turno ativo é guardado pelo id do combatente, não por posição: adicionar ou remover alguém não troca a vez.
-    var activeId by remember { mutableStateOf(CombatStore.activeId(prefs)) }
-    val ordered = combatants.sortedWith(
-        compareByDescending<Combatant> { it.initiative }.thenBy { it.name.lowercase() }.thenBy { it.id }
-    )
-    val activeIndex = ordered.indexOfFirst { it.id == activeId }.coerceAtLeast(0)
-    fun persistCombat() = CombatStore.save(prefs, combatants.toList(), activeId)
+    val ordered = controller.ordered
+    val activeIndex = ordered.indexOfFirst { it.id == controller.activeId }.coerceAtLeast(0)
+    val round = controller.round
     var editingConditionsId by remember { mutableStateOf("") }
-    var round by remember { mutableStateOf(CombatStore.round(prefs)) }
-
-    /** Troca o combatente de mesmo id pelo [updated], grava o combate e leva PV e condições à ficha. */
-    fun updateFighter(updated: Combatant) {
-        val at = combatants.indexOfFirst { it.id == updated.id }
-        if (at < 0) return
-        combatants[at] = updated
-        persistCombat()
-        CombatStore.syncToSheet(prefs, updated)
-    }
-
-    /** Marca (com [rounds] de duração, 0 = até remover) ou desmarca a condição. */
-    fun toggleCondition(fighterId: String, condition: String, rounds: Int) {
-        val fighter = combatants.firstOrNull { it.id == fighterId } ?: return
-        val active = fighter.conditions.any { it.equals(condition, ignoreCase = true) }
-        updateFighter(if (active) fighter.withoutCondition(condition) else fighter.withCondition(condition, rounds))
-    }
-
-    fun setHp(fighter: Combatant, delta: Int) {
-        val at = combatants.indexOfFirst { it.id == fighter.id }
-        if (at < 0) return
-        val updated = combatants[at].withDamage(-delta)
-        combatants[at] = updated
-        persistCombat()
-        CombatStore.syncToSheet(prefs, updated)
-    }
-
-    /** Passa a vez ao próximo que pode agir; quem está com Atordoado, Paralisado etc. perde o turno e isso vai para o histórico. */
-    fun advanceTurn() {
-        if (ordered.isEmpty()) return
-        val step = nextTurn(ordered, activeIndex)
-        val nextId = ordered[step.nextIndex].id
-        // O turno de quem jogou e o de quem foi pulado terminam aqui: as condições com duração perdem uma rodada.
-        val expiredLines = mutableListOf<RollLine>()
-        for (id in listOf(ordered[activeIndex].id) + step.passed) {
-            val fighter = combatants.firstOrNull { it.id == id } ?: continue
-            val tick = fighter.tickConditions()
-            tick.expired.forEach { expiredLines += RollLine("⏳ ${conditionEmoji(it)} $it de ${fighter.name} acabou.", true) }
-            var after = tick.fighter
-            // Personagem a 0 PV: a vez dele passou, então rola a salvaguarda contra a morte.
-            if (id in step.passed && after.isDying()) {
-                val death = rollDeathSave(engine, after)
-                after = death.fighter
-                expiredLines += death.line
-            }
-            if (after != fighter) updateFighter(after)
-        }
-        activeId = nextId
-        persistCombat()
-        if (step.newRound) { round += 1; CombatStore.saveRound(prefs, round) }
-        step.skipped.forEach { log.push(RollLine("${conditionEmoji(it.condition)} ${it.name} está ${it.condition} e perde o turno.", null)) }
-        expiredLines.forEach { log.push(it) }
-        if (step.newRound) log.push(RollLine("— Rodada $round —", null))
-        if (step.nobodyCanAct) log.push(RollLine("Ninguém consegue agir agora (todos derrotados ou incapacitados).", null))
-        else log.push(RollLine("Vez de ${ordered[step.nextIndex].name}.", null))
-    }
 
     fun pickSource(key: String) {
         sourceKey = key
@@ -259,37 +215,40 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
         else -> "Sem ficha (valores manuais)"
     }
 
-    var tab by rememberSaveable { mutableStateOf(if (combatants.isNotEmpty()) "Combate" else "Rolar") }
+    // Jogador conectado: o personagem dele vem do mestre.
+    val clientMode = TableSession.mode == "client"
+    val remoteOwn: Combatant? = if (clientMode) {
+        TableSession.snapshot?.fighters?.firstOrNull { it.id == TableSession.myId }?.let { f ->
+            Combatant(
+                id = f.id, name = f.name, initiative = f.initiative, currentHp = f.hp, maxHp = f.maxHp, armorClass = f.armorClass,
+                conditions = f.conditions, sheetId = f.id, sheetKind = CombatantSource.CHARACTER, tempHp = f.tempHp
+            )
+        }
+    } else null
+    val tablePlayerSheet = if (SheetRole.normalize(userRole) == SheetRole.PLAYER) sourceCharacter else null
+    val isMaster = !clientMode && tablePlayerSheet == null
+
+    var tab by rememberSaveable { mutableStateOf("Combate") }
 
     Column(modifier.fillMaxSize()) {
         combatants.firstOrNull { it.id == editingConditionsId }?.let { f ->
-            ConditionsDialog(f, { condition, rounds -> toggleCondition(f.id, condition, rounds) }, { editingConditionsId = "" })
+            ConditionsDialog(f, { condition, rounds -> controller.toggleCondition(f.id, condition, rounds) }, { editingConditionsId = "" })
+        }
+        TabRow(selectedTabIndex = if (tab == "Rolar") 0 else 1, containerColor = Night, contentColor = Accent) {
+            listOf("Rolar", "Combate").forEach { name ->
+                val label = if (name == "Combate" && combatants.isNotEmpty()) "Combate (${combatants.size})" else name
+                Tab(
+                    selected = name == tab, onClick = { tab = name },
+                    text = { Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) },
+                    unselectedContentColor = Muted
+                )
+            }
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(top = 20.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(top = 14.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item {
-                Column {
-                    Text("DADOS E COMBATE", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                    Text("Dados e combate", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Role dados, faça testes e controle a iniciativa e os PV da batalha.", color = Muted, fontSize = 13.sp)
-                }
-            }
-
-            item {
-                TabRow(selectedTabIndex = if (tab == "Rolar") 0 else 1, containerColor = Night, contentColor = Accent) {
-                    listOf("Rolar", "Combate").forEach { name ->
-                        val label = if (name == "Combate" && combatants.isNotEmpty()) "Combate (${combatants.size})" else name
-                        Tab(
-                            selected = name == tab, onClick = { tab = name },
-                            text = { Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) },
-                            unselectedContentColor = Muted
-                        )
-                    }
-                }
-            }
             if (tab == "Rolar") {
             item {
                 EditorCard("QUEM ESTÁ ROLANDO", "As rolagens usam os valores da ficha ou criatura escolhida") {
@@ -362,92 +321,103 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
             }
 
             } else {
+            // Jogador: entrar na mesa do mestre vem primeiro (sem isso ele não vê nada).
+            if (!isMaster) {
+                item { TableLinkCard(playerSheet = tablePlayerSheet, library = library, prefs = prefs, engine = engine) }
+            }
+            item {
+                TableModeScreen(
+                    fighters = if (clientMode) listOfNotNull(remoteOwn) else ordered, activeIndex = activeIndex, round = round,
+                    library = library, prefs = prefs, engine = engine, defenseLabel = defenseLabel,
+                    playerSheet = tablePlayerSheet,
+                    remote = clientMode,
+                    monsters = monsters,
+                    statusLine = if (TableSession.mode == "host") "${TableSession.clients} jogador(es) na rede" else "",
+                    isMyTurn = clientMode && TableSession.snapshot?.activeId == TableSession.myId,
+                    onEndTurn = { TableSession.send(ClientMsg.EndTurn) },
+                    onAdjustHp = { fighter, delta -> if (clientMode) TableSession.send(ClientMsg.Adjust(delta)) else controller.setHp(fighter, delta) },
+                    onUpdateFighter = { if (clientMode) TableSession.send(ClientMsg.SetInitiative(it.initiative)) else controller.updateFighter(it) },
+                    onSetInitiative = { fighter, value -> controller.setInitiative(fighter.id, value) },
+                    onNextTurn = { controller.advanceTurn() },
+                    onEndCombat = { controller.endCombat() },
+                    onOpenConditions = { editingConditionsId = it },
+                    onRemove = { id -> controller.remove(id) },
+                    onJoin = { sheet, initiative -> controller.joinCombat(sheet, initiative, library) },
+                    onAddAllCharacters = { controller.addAllCharacters(characters, library) }
+                )
+            }
+            if (isMaster) {
+                item {
+                    val currentGroups = combatants
+                        .filter { it.sheetKind == CombatantSource.MONSTER && it.sheetId.isNotBlank() }
+                        .groupingBy { it.sheetId }.eachCount()
+                        .map { EncounterEntry(it.key, it.value) }
+                    EncountersSection(
+                        prefs = prefs, monsters = monsters, currentGroups = currentGroups,
+                        startExpanded = ordered.isEmpty(),
+                        onStart = { controller.startEncounter(it, monsters, characters, library) }
+                    )
+                }
+                item {
+                    CollapsibleSection("ADICIONAR À BATALHA", summary = "Personagem, criatura ou à mão", startExpanded = false) {
+                        PickButton(sourceLabel, sourceOptions.map { it.second }) { pickSource(sourceOptions[it].first) }
+                        if (sourceCharacter != null) {
+                            Button(onClick = { controller.addCharacter(sourceCharacter, library) },
+                                modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Brand)) {
+                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar ${sourceCharacter.name.ifBlank { "personagem" }}")
+                            }
+                        } else if (sourceMonster != null) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                NumberField("Quantidade", quantity, { quantity = it.coerceIn(1, 20) }, Modifier.weight(1f))
+                                Button(onClick = { controller.addMonsters(sourceMonster, quantity) },
+                                    modifier = Modifier.weight(1.4f), colors = ButtonDefaults.buttonColors(containerColor = Brand)) {
+                                    Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar")
+                                }
+                            }
+                        }
+                        Text("Ou adicione à mão (a iniciativa você digita depois):", color = Muted, fontSize = 13.sp)
+                        TextInput("Nome do combatente", actorName, { actorName = it })
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NumberField("PV máx.", actorHp, { actorHp = it.coerceAtLeast(0) }, Modifier.weight(1f))
+                            NumberField(defenseLabel, actorDefense, { actorDefense = it.coerceAtLeast(0) }, Modifier.weight(1f))
+                        }
+                        OutlinedButton(onClick = {
+                            if (actorName.isNotBlank() && actorHp > 0) {
+                                controller.addManual(actorName, actorHp, actorDefense)
+                                actorName = ""
+                            } else log.push(RollLine("Informe um nome e PV máximos maiores que zero.", null))
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar combatente")
+                        }
+                    }
+                }
+                item { TableLinkCard(playerSheet = tablePlayerSheet, library = library, prefs = prefs, engine = engine) }
+            }
             if (sourceCharacter != null) {
                 item {
-                    EditorCard("PAPEL NA MESA", "Jogador vê as cartas de ação; Mestre controla a cena inteira") {
+                    EditorCard("PAPEL NA MESA", "Jogador vê o próprio personagem e as ações; Mestre controla a cena inteira") {
                         RoleSelector(sourceCharacter.role, { setRole(sourceCharacter, it) })
                     }
                 }
             }
-            if (ordered.isNotEmpty()) {
-                item {
-                    BattleArenaScreen(
-                        fighters = ordered, activeIndex = activeIndex,
-                        characters = characters, monsters = monsters, library = library,
-                        prefs = prefs, engine = engine, fallbackVariables = variables, fallbackProfile = profile,
-                        defenseLabel = if (profile.usesArmorClass) "CA" else "defesa", log = log,
-                        onDamage = { targetId, damage ->
-                            val at = combatants.indexOfFirst { it.id == targetId }
-                            if (at < 0) null else {
-                                val updated = combatants[at].withDamage(damage)
-                                combatants[at] = updated
-                                persistCombat()
-                                CombatStore.syncToSheet(prefs, updated)
-                                updated
-                            }
-                        },
-                        round = round,
-                        userRole = userRole, playerSheetId = sourceCharacter?.id.orEmpty(),
-                        onUpdateFighter = { updateFighter(it) },
-                        onNextTurn = { advanceTurn() },
-                        onEndCombat = { combatants.clear(); activeId = ""; round = 1; CombatStore.saveRound(prefs, 1); persistCombat() },
-                        onOpenConditions = { editingConditionsId = it },
-                        onAdjustHp = { fighter, delta -> setHp(fighter, delta) },
-                        onRemove = { id -> combatants.removeAll { it.id == id }; persistCombat() }
-                    )
-                }
             }
-            item {
-                CollapsibleSection("ADICIONAR À BATALHA", summary = "Personagem, criatura ou à mão", startExpanded = ordered.isEmpty()) {
-                    PickButton(sourceLabel, sourceOptions.map { it.second }) { pickSource(sourceOptions[it].first) }
-                    if (sourceCharacter != null) {
-                        Button(onClick = {
-                            if (combatants.any { it.sheetId == sourceCharacter.id }) {
-                                log.push(RollLine("${sourceCharacter.name.ifBlank { "Personagem" }} já está no combate.", null))
-                            } else {
-                                val fighter = characterCombatant(engine, sourceCharacter, profile, library)
-                                combatants.add(fighter); persistCombat()
-                                log.push(RollLine("${fighter.name} entrou • iniciativa ${fighter.initiative} • PV ${fighter.currentHp}/${fighter.maxHp}", true))
-                            }
-                        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Brand)) {
-                            Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar ${sourceCharacter.name.ifBlank { "personagem" }}")
-                        }
-                    } else if (sourceMonster != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            NumberField("Quantidade", quantity, { quantity = it.coerceIn(1, 20) }, Modifier.weight(1f))
-                            Button(onClick = {
-                                val added = List(quantity) { i -> monsterCombatant(engine, sourceMonster, profile, if (quantity > 1) i + 1 else null) }
-                                combatants.addAll(added); persistCombat()
-                                log.push(RollLine("${added.size} × ${sourceMonster.name.ifBlank { "Criatura" }} entraram, cada uma com PV e iniciativa próprios.", true))
-                            }, modifier = Modifier.weight(1.4f), colors = ButtonDefaults.buttonColors(containerColor = Brand)) {
-                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar")
-                            }
-                        }
-                    }
-                    Text("Ou adicione à mão:", color = Muted, fontSize = 13.sp)
-                    TextInput("Nome do combatente", actorName, { actorName = it })
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberField("Bônus iniciativa", actorInitiativeBonus, { actorInitiativeBonus = it }, Modifier.weight(1f))
-                        NumberField("PV máx.", actorHp, { actorHp = it.coerceAtLeast(0) }, Modifier.weight(1f))
-                        NumberField(defenseLabel, actorDefense, { actorDefense = it.coerceAtLeast(0) }, Modifier.weight(1f))
-                    }
-                    OutlinedButton(onClick = {
-                        if (actorName.isNotBlank() && actorHp > 0) {
-                            val base = if (profile.isPool) "1d${profile.poolSides}" else baseDie(profile)
-                            val bonus = actorInitiativeBonus
-                            val init = engine.roll(if (bonus >= 0) "$base + $bonus" else "$base - ${-bonus}").total
-                            combatants.add(Combatant(java.util.UUID.randomUUID().toString(), actorName.trim(), init, actorHp, actorHp, actorDefense))
-                            persistCombat(); actorName = ""
-                        } else log.push(RollLine("Informe um nome e PV máximos maiores que zero.", null))
-                    }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar e rolar iniciativa")
-                    }
-
-                    if (ordered.isEmpty()) Text("Nenhum combatente na iniciativa.", color = Muted, fontSize = 13.sp)
-                    else Text("${ordered.size} participante(s) na batalha — veja a arena acima.", color = Muted, fontSize = 13.sp)
-                }
-            }
-
+        }
+        // Mestre: passar o turno e desfazer ficam sempre à mão, sem rolar a tela.
+        if (tab == "Combate" && isMaster && ordered.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = { controller.undo() }, enabled = controller.canUndo,
+                    modifier = Modifier.height(56.dp), shape = RoundedCornerShape(16.dp)
+                ) { Text("↶ Desfazer") }
+                Button(
+                    onClick = { controller.advanceTurn() },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Brand),
+                    shape = RoundedCornerShape(16.dp)
+                ) { Text("Próximo turno  ▶", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
             }
         }
         RollLogBar(log) { log.clear() }

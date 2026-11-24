@@ -2,7 +2,7 @@
 
 Aplicativo Android de RPG de mesa **para qualquer sistema e qualquer estilo de jogo** (fantasia, terror, ficção científica, investigação...), feito em Kotlin e Jetpack Compose. Funciona 100% offline, com modo claro e escuro.
 
-**Versão:** 0.9.14 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
+**Versão:** 0.9.16 (beta) · **Application ID:** `com.example.rpgsombrio` · **minSdk:** 26 · **targetSdk:** 35
 
 ## Funcionalidades
 
@@ -13,7 +13,9 @@ Aplicativo Android de RPG de mesa **para qualquer sistema e qualquer estilo de j
 - **Itens e Traços** — biblioteca de itens (tipo, peso, bônus, dano) e de vantagens/desvantagens com custo em pontos; a ficha tem inventário e orçamento de pontos.
 - **Sistemas** — construtor de sistemas próprios (atributos, recursos, perícias, dados, fórmulas). D&D 5e, D&D 2024 e Vampiro vêm como modelos editáveis.
 - **Motor de regras** — rolagens (d4–d100), fórmulas com variáveis (`1d20 + DES + PROF`), testes contra CD, iniciativa, turnos, ataques, salvaguardas, condições com duração e salvaguardas contra a morte.
-- **Arena de combate** — combate com criaturas e personagens, PV sincronizados com a ficha.
+- **Modo mesa** — combate para jogo presencial: todo mundo rola o dado físico e o app só acompanha iniciativa, PV e condições (padrão). O jogador digita o d20 e vê o total já com o bônus.
+- **Mesa em rede** — o mestre abre a mesa (endereço + código de 4 dígitos) e os jogadores entram pelos celulares na mesma rede Wi-Fi (ou na zona Wi-Fi do mestre). Eles veem a ordem de iniciativa, "É a sua vez!" e o PV do próprio personagem; das criaturas, só o estado (Ferido, Quase morto...). Sem internet, sem conta.
+- **Arena de combate** — versão animada, em que o app rola os dados (desligue o Modo mesa para usá-la).
 - **Visual neutro e colorido** — modo claro e escuro; cada tipo de conteúdo tem a sua cor.
 - **Criador de aparência legado** — avatar em pixel art gerado por código; a substituição pelo Character Studio ilustrado está em desenvolvimento.
 
@@ -63,7 +65,7 @@ O workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) roda
 
 ## Limitações conhecidas
 
-- Sem contas, login, campanhas multiusuário ou sincronização em nuvem.
+- Sem contas, login ou nuvem. A mesa em rede só vale na mesma rede local, sem QR code, e o servidor do mestre para se o Android suspender o app.
 - Sem banco Room; sem exportar/importar backup (reinstalar o app pode perder os dados).
 - Itens equipados ainda não alteram atributos (a CA já é alterada).
 

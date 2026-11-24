@@ -21,6 +21,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material3.AlertDialog
+import com.example.rpgsombrio.data.BestiaryCategoryStore
+import com.example.rpgsombrio.engine.NO_CATEGORY
+import com.example.rpgsombrio.engine.inCategory
+import com.example.rpgsombrio.engine.monsterCategories
+import com.example.rpgsombrio.engine.typeKey
+import com.example.rpgsombrio.engine.uncategorizedCount
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,6 +58,7 @@ import com.example.rpgsombrio.data.EntryKind
 import com.example.rpgsombrio.data.MonsterSheet
 import com.example.rpgsombrio.data.NamedEntry
 import com.example.rpgsombrio.data.SheetStore
+import com.example.rpgsombrio.data.missingSrdMonsters
 import com.example.rpgsombrio.data.SystemProfile
 import com.example.rpgsombrio.data.SystemProfiles
 import com.example.rpgsombrio.data.shortResourceLabel
@@ -94,7 +104,13 @@ import com.example.rpgsombrio.ui.theme.Panel
 import com.example.rpgsombrio.ui.theme.Panel2
 
 private const val ALL_SYSTEMS = "Todos os sistemas"
+private const val ALL_CATEGORY = "Todas as criaturas"
 
+/**
+ * Bestiário por categorias (0.9.18): ao abrir, o mestre vê as categorias (Aberração, Construto, Fera...) com a
+ * quantidade de criaturas; tocar numa categoria abre a lista daquele tipo. A categoria é o campo "Tipo" da criatura.
+ * O mestre pode criar categorias próprias, e a busca no topo procura em todas.
+ */
 @Composable
 internal fun BestiaryScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -102,17 +118,33 @@ internal fun BestiaryScreen(modifier: Modifier = Modifier) {
     val monsters = remember { mutableStateListOf<MonsterSheet>().apply { addAll(SheetStore.loadMonsters(prefs)) } }
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
-    var typeFilter by rememberSaveable { mutableStateOf("Todos") }
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
     var systemFilter by rememberSaveable { mutableStateOf(ALL_SYSTEMS) }
     var deleteTarget by remember { mutableStateOf<MonsterSheet?>(null) }
+    var customCategories by remember { mutableStateOf(BestiaryCategoryStore.load(prefs)) }
+    var newCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryName by remember { mutableStateOf("") }
     fun persist() = SheetStore.saveMonsters(prefs, monsters.toList())
 
     val current = monsters.firstOrNull { it.id == openId }
     BackHandler(enabled = current != null) { openId = null }
+    BackHandler(enabled = current == null && category != null) { category = null; query = "" }
+
+    val types = monsters.map { it.type }
+    val categories = monsterCategories(customCategories, types)
+
+    /** Cria a criatura já na categoria aberta (nas pastas "Todas" e "Sem categoria" ela nasce sem tipo). */
+    fun addMonster() {
+        val picked = category?.takeIf { it != ALL_CATEGORY && it != NO_CATEGORY }.orEmpty()
+        val monster = SheetStore.newMonster(prefs).copy(type = picked)
+        monsters.add(0, monster); persist(); openId = monster.id
+    }
+    fun matches(m: MonsterSheet) = listOf(m.name, m.type, m.size, m.challenge).any { it.contains(query, ignoreCase = true) }
 
     if (current != null) {
         MonsterEditor(
             modifier, current, prefs,
+            categoryNames = categories.map { it.name },
             onChange = { updated ->
                 val i = monsters.indexOfFirst { it.id == updated.id }
                 if (i >= 0) { monsters[i] = updated; persist() }
@@ -120,34 +152,88 @@ internal fun BestiaryScreen(modifier: Modifier = Modifier) {
             onBack = { openId = null },
             onDelete = { deleteTarget = current }
         )
-    } else {
-        val typeOptions = listOf("Todos") + monsters.map { it.type.trim() }.filter { it.isNotEmpty() }.distinct().sorted()
-        val filter = if (typeFilter in typeOptions) typeFilter else "Todos"
-        val systemNames = monsters.map { systemDisplayName(prefs, it.systemId) }.distinct().sorted()
-        val systemOptionsList = listOf(ALL_SYSTEMS) + systemNames
-        val sysFilter = if (systemFilter in systemOptionsList) systemFilter else ALL_SYSTEMS
-        val filtered = monsters
-            .filter { m -> sysFilter == ALL_SYSTEMS || systemDisplayName(prefs, m.systemId) == sysFilter }
-            .filter { m -> filter == "Todos" || m.type.trim() == filter }
-            .filter { m -> listOf(m.name, m.type, m.size, m.challenge).any { it.contains(query, ignoreCase = true) } }
-            .sortedBy { it.name.lowercase() }
+    } else if (category == null) {
+        // Entrada: as categorias. Com algo na busca, mostra direto as criaturas encontradas, de qualquer categoria.
+        val searching = query.isNotBlank()
+        val hits = if (searching) monsters.filter { matches(it) }.sortedBy { it.name.lowercase() } else emptyList()
+        val noCategory = uncategorizedCount(types)
         LazyColumn(
             modifier.fillMaxSize().padding(horizontal = 18.dp),
             contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            listHeader("Criaturas", "Bestiário", "Fichas de criaturas e ameaças",
-                query, { query = it }, "Nova criatura") {
-                val monster = SheetStore.newMonster(prefs)
-                monsters.add(0, monster); persist(); openId = monster.id
+            listHeader("Criaturas", "Bestiário", "Escolha uma categoria ou busque pelo nome",
+                query, { query = it }, "Nova criatura") { addMonster() }
+            if (searching) {
+                if (hits.isEmpty()) item { EmptyHint("Nenhum resultado.") }
+                items(hits, key = { it.id }) { monster -> MonsterCard(monster, prefs) { openId = monster.id } }
+            } else {
+                item { CategoryCard(ALL_CATEGORY, monsters.size, null) { category = ALL_CATEGORY } }
+                items(categories, key = { it.name }) { c ->
+                    CategoryCard(
+                        c.name, c.count,
+                        onDelete = if (c.isCustom && c.count == 0) {
+                            {
+                                customCategories = customCategories.filter { typeKey(it) != typeKey(c.name) }
+                                BestiaryCategoryStore.save(prefs, customCategories)
+                            }
+                        } else null
+                    ) { category = c.name }
+                }
+                if (noCategory > 0) item { CategoryCard(NO_CATEGORY, noCategory, null) { category = NO_CATEGORY } }
+                val missingSrd = missingSrdMonsters(monsters.toList())
+                if (missingSrd.isNotEmpty()) item {
+                    OutlinedButton(
+                        onClick = { monsters.addAll(missingSrd); persist() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Importar bestiário SRD 5.1 (${missingSrd.size} criaturas)") }
+                }
+                item { AddRowButton("Nova categoria") { newCategoryName = ""; newCategoryDialog = true } }
             }
+        }
+    } else {
+        val chosen = category.orEmpty()
+        val systemNames = monsters.map { systemDisplayName(prefs, it.systemId) }.distinct().sorted()
+        val systemOptionsList = listOf(ALL_SYSTEMS) + systemNames
+        val sysFilter = if (systemFilter in systemOptionsList) systemFilter else ALL_SYSTEMS
+        val inFolder = monsters.filter { chosen == ALL_CATEGORY || inCategory(it.type, chosen) }
+        val filtered = inFolder
+            .filter { m -> sysFilter == ALL_SYSTEMS || systemDisplayName(prefs, m.systemId) == sysFilter }
+            .filter { m -> matches(m) }
+            .sortedBy { it.name.lowercase() }
+        LazyColumn(
+            modifier.fillMaxSize().padding(horizontal = 18.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item { TextButton(onClick = { category = null; query = "" }) { Text("← Categorias", color = Accent) } }
+            listHeader("Categoria", chosen, if (inFolder.size == 1) "1 criatura" else "${inFolder.size} criaturas",
+                query, { query = it }, "Nova criatura") { addMonster() }
             if (systemOptionsList.size > 2) item { ChipFilterRow(systemOptionsList, sysFilter) { systemFilter = it } }
-            if (typeOptions.size > 2) item { ChipFilterRow(typeOptions, filter) { typeFilter = it } }
             if (filtered.isEmpty()) item {
-                if (query.isBlank() && filter == "Todos" && sysFilter == ALL_SYSTEMS) EmptyState("criatura", "Nenhuma criatura ainda", "Toque em Nova criatura para montar monstros e aliados.") else EmptyHint("Nenhum resultado.")
+                if (query.isBlank() && sysFilter == ALL_SYSTEMS) EmptyState("criatura", "Nenhuma criatura em $chosen", "Toque em Nova criatura para adicionar a esta categoria.") else EmptyHint("Nenhum resultado.")
             }
             items(filtered, key = { it.id }) { monster -> MonsterCard(monster, prefs) { openId = monster.id } }
         }
+    }
+
+    if (newCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { newCategoryDialog = false },
+            title = { Text("Nova categoria") },
+            text = { TextInput("Nome (ex.: Demônio)", newCategoryName, { newCategoryName = it }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = newCategoryName.trim()
+                    if (name.isNotEmpty() && categories.none { typeKey(it.name) == typeKey(name) }) {
+                        customCategories = customCategories + name
+                        BestiaryCategoryStore.save(prefs, customCategories)
+                    }
+                    newCategoryDialog = false
+                }) { Text("Criar") }
+            },
+            dismissButton = { TextButton(onClick = { newCategoryDialog = false }) { Text("Cancelar") } }
+        )
     }
 
     deleteTarget?.let { target ->
@@ -158,6 +244,30 @@ internal fun BestiaryScreen(modifier: Modifier = Modifier) {
             if (openId == target.id) openId = null
             deleteTarget = null
         }, onDismiss = { deleteTarget = null })
+    }
+}
+
+@Composable
+private fun CategoryCard(name: String, count: Int, onDelete: (() -> Unit)?, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Hairline)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(Icons.Default.Pets, contentDescription = null, tint = Accent)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(if (count == 1) "1 criatura" else "$count criaturas", color = Muted, fontSize = 13.sp)
+            }
+            if (onDelete != null) IconButton(onClick = onDelete) {
+                Icon(Icons.Default.DeleteOutline, contentDescription = "Apagar categoria", tint = Muted)
+            }
+        }
     }
 }
 
@@ -193,6 +303,7 @@ private fun MonsterEditor(
     modifier: Modifier,
     monster: MonsterSheet,
     prefs: SharedPreferences,
+    categoryNames: List<String>,
     onChange: (MonsterSheet) -> Unit,
     onBack: () -> Unit,
     onDelete: () -> Unit
@@ -229,6 +340,12 @@ private fun MonsterEditor(
                         TextInput("Tipo", monster.type, { onChange(monster.copy(type = it)) }, Modifier.weight(1f))
                         TextInput("Tamanho", monster.size, { onChange(monster.copy(size = it)) }, Modifier.weight(1f))
                     }
+                    if (categoryNames.isNotEmpty()) {
+                        Text("Categoria (toque para escolher)", color = Muted, fontSize = 13.sp)
+                        ChipFilterRow(categoryNames, categoryNames.firstOrNull { typeKey(it) == typeKey(monster.type) } ?: "") {
+                            onChange(monster.copy(type = it))
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextInput("ND / ameaça", monster.challenge, { onChange(monster.copy(challenge = it)) }, Modifier.weight(1f))
                         TextInput("Alinhamento", monster.alignment, { onChange(monster.copy(alignment = it)) }, Modifier.weight(1f))
@@ -255,9 +372,9 @@ private fun MonsterEditor(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         NumberField("Quantidade", quantity, { quantity = it.coerceIn(1, 20) }, Modifier.weight(1f))
                         Button(onClick = {
-                            val added = List(quantity) { i -> monsterCombatant(engine, monster, profile, if (quantity > 1) i + 1 else null) }
+                            val added = List(quantity) { i -> monsterCombatant(engine, monster, profile, if (quantity > 1) i + 1 else null).copy(initiative = 0) }
                             CombatStore.add(prefs, *added.toTypedArray())
-                            log.push(RollLine("${added.size} × ${monster.name.ifBlank { "Criatura" }} no combate. Veja na aba Dados.", true))
+                            log.push(RollLine("${added.size} × ${monster.name.ifBlank { "Criatura" }} no combate. Veja na aba Mesa e digite a iniciativa.", true))
                         }, colors = ButtonDefaults.buttonColors(containerColor = Brand)) { Text("Ao combate") }
                     }
                     NumberField(

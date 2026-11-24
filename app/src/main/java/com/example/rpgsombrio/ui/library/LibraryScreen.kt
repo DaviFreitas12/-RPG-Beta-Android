@@ -34,7 +34,7 @@ internal fun LibraryHubScreen(modifier: Modifier = Modifier, onNavigate: (String
             Text("Acervo", color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Bold)
             Text("Criaturas, magias, itens e traços da sua mesa.", color = Muted, fontSize = 13.sp)
         }
-        item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas, estatísticas e ameaças", Coral) { onNavigate("Bestiário") } }
+        item { QuickCard(Icons.Default.Pets, "Bestiário", "Criaturas por categoria: construtos, feras, aberrações...", Coral) { onNavigate("Bestiário") } }
         item { QuickCard(Icons.Default.MenuBook, "Grimório", "Magias, poderes e efeitos", Violet) { onNavigate("Grimório") } }
         item { QuickCard(Icons.Default.Inventory2, "Itens", "Armas, armaduras, consumíveis e tesouros", Amber) { onNavigate("Itens") } }
         item { QuickCard(Icons.Default.Star, "Vantagens e desvantagens", "Traços com custo em pontos, por sistema", Sky) { onNavigate("Traços") } }
