@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.engine
 
+import com.example.rpgsombrio.data.CampaignInfo
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -96,6 +97,9 @@ sealed class ClientMsg {
         val hp: Int, val maxHp: Int, val armorClass: Int
     ) : ClientMsg()
 
+    /** Entrada na campanha (0.10.6): o jogador manda o código e quem ele é; o mestre responde com a campanha e a conversa acaba. */
+    data class JoinCampaign(val code: String, val userId: String, val name: String) : ClientMsg()
+
     /** Dano (negativo) ou cura (positivo) no próprio personagem. */
     data class Adjust(val delta: Int) : ClientMsg()
 
@@ -108,6 +112,7 @@ sealed class ClientMsg {
 
 fun ClientMsg.encode(): String = when (this) {
     is ClientMsg.Hello -> listOf("HELLO", enc(code), enc(playerId), enc(name), initiative, hp, maxHp, armorClass).joinToString("|")
+    is ClientMsg.JoinCampaign -> listOf("JOINC", enc(code), enc(userId), enc(name)).joinToString("|")
     is ClientMsg.Adjust -> "ADJ|$delta"
     is ClientMsg.SetInitiative -> "INI|$value"
     is ClientMsg.EndTurn -> "END"
@@ -128,6 +133,9 @@ fun parseClientMsg(line: String): ClientMsg? {
                     armorClass = (p[7].toIntOrNull() ?: return null).coerceIn(0, 99)
                 )
             }
+            "JOINC" -> if (p.size != 4 || dec(p[2]).isBlank()) null else ClientMsg.JoinCampaign(
+                code = dec(p[1]), userId = dec(p[2]).take(64), name = dec(p[3]).trim().take(40).ifBlank { "Jogador" }
+            )
             "ADJ" -> if (p.size != 2) null else ClientMsg.Adjust((p[1].toIntOrNull() ?: return null).coerceIn(-999, 999))
             "INI" -> if (p.size != 2) null else ClientMsg.SetInitiative((p[1].toIntOrNull() ?: return null).coerceIn(-99, 999))
             "END" -> if (p.size != 1) null else ClientMsg.EndTurn
@@ -148,3 +156,30 @@ fun helloToCombatant(hello: ClientMsg.Hello, id: String): Combatant = Combatant(
 /** Código de 4 dígitos da sessão. */
 fun newJoinCode(random: kotlin.random.Random = kotlin.random.Random.Default): String =
     random.nextInt(0, 10000).toString().padStart(4, '0')
+
+/** Uma linha: `CAMP|id|nome|descrição|sistema|idDoMestre|criação|vida` (campos codificados). */
+fun CampaignInfo.encode(): String =
+    listOf("CAMP", enc(id), enc(name), enc(description), enc(systemId), enc(masterUserId), enc(creationMethod), enc(hpMethod))
+        .joinToString("|")
+
+/** Lê uma linha `CAMP|...`; devolve null se estiver malformada ou sem id. */
+fun decodeCampaign(line: String): CampaignInfo? {
+    return try {
+        val p = line.trim().split('|')
+        if (p.size != 8 || p[0] != "CAMP") return null
+        val id = dec(p[1])
+        if (id.isBlank()) return null
+        CampaignInfo(
+            id = id, name = dec(p[2]).trim().take(80).ifBlank { "Campanha" }, description = dec(p[3]).take(500),
+            systemId = dec(p[4]).ifBlank { "dnd5e" }, masterUserId = dec(p[5]), creationMethod = dec(p[6]), hpMethod = dec(p[7])
+        )
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+}
+
+/** "192.168.1.23" ou "192.168.1.23:8765" vira (endereço, porta). */
+fun splitAddress(address: String): Pair<String, Int> {
+    val clean = address.trim()
+    return clean.substringBefore(':') to (clean.substringAfter(':', "").toIntOrNull() ?: TABLE_PORT)
+}

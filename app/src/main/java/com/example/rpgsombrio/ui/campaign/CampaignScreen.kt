@@ -33,6 +33,11 @@ import com.example.rpgsombrio.data.CharacterSheet
 import com.example.rpgsombrio.data.CreationMethod
 import com.example.rpgsombrio.data.HpMethod
 import com.example.rpgsombrio.data.SystemProfiles
+import com.example.rpgsombrio.engine.ClientMsg
+import com.example.rpgsombrio.engine.JoinResult
+import com.example.rpgsombrio.engine.requestCampaign
+import com.example.rpgsombrio.engine.splitAddress
+import com.example.rpgsombrio.ui.combat.TableSession
 import com.example.rpgsombrio.data.grantLevelUp
 import com.example.rpgsombrio.data.levelRulesFor
 import com.example.rpgsombrio.data.levelUpBlockReason
@@ -68,6 +73,7 @@ internal fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) 
     var activeId by remember { mutableStateOf(CampaignStore.activeId(prefs)) }
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var joining by remember { mutableStateOf(false) }
 
     BackHandler(enabled = openId != null) { openId = null }
 
@@ -76,7 +82,8 @@ internal fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) 
         CampaignList(
             modifier, campaigns, sheets, userId, activeId, prefs,
             onOpen = { openId = it },
-            onCreate = { creating = true }
+            onCreate = { creating = true },
+            onJoin = { joining = true }
         )
     } else {
         CampaignDetail(
@@ -126,12 +133,26 @@ internal fun CampaignScreen(modifier: Modifier = Modifier, onNavigate: (String) 
             onDismiss = { creating = false }
         )
     }
+
+    if (joining) {
+        JoinCampaignDialog(
+            prefs = prefs, userId = userId,
+            onJoined = { joined ->
+                joining = false
+                val i = campaigns.indexOfFirst { it.id == joined.id }
+                if (i >= 0) campaigns[i] = joined else campaigns.add(joined)
+                activeId = CampaignStore.activeId(prefs)
+                openId = joined.id
+            },
+            onDismiss = { joining = false }
+        )
+    }
 }
 
 @Composable
 private fun CampaignList(
     modifier: Modifier, campaigns: List<Campaign>, sheets: List<CharacterSheet>, userId: String,
-    activeId: String?, prefs: SharedPreferences, onOpen: (String) -> Unit, onCreate: () -> Unit
+    activeId: String?, prefs: SharedPreferences, onOpen: (String) -> Unit, onCreate: () -> Unit, onJoin: () -> Unit
 ) {
     val visible = campaigns.filter { !it.isArchived }
         .sortedWith(compareByDescending<Campaign> { it.id == activeId }.thenBy { it.name.lowercase() })
@@ -152,6 +173,9 @@ private fun CampaignList(
                 Spacer(Modifier.width(8.dp))
                 Text("Criar campanha")
             }
+        }
+        item {
+            OutlinedButton(onClick = onJoin, modifier = Modifier.fillMaxWidth()) { Text("Entrar em campanha (com código do mestre)") }
         }
         if (visible.isEmpty()) item {
             Text("Nenhuma campanha ativa. Crie uma para começar.", color = Muted, fontSize = 13.sp)
@@ -402,10 +426,19 @@ private fun CampaignDetail(
                 if (isMaster && !campaign.inviteCode.isNullOrBlank()) {
                     Text("Código da campanha: ${campaign.inviteCode}", color = Accent, fontWeight = FontWeight.Bold)
                 }
-                Text(
-                    "Os jogadores vão aparecer aqui quando a conexão com a mesa em rede for ligada à campanha.",
-                    color = Muted, fontSize = 12.sp
-                )
+                if (isMaster) {
+                    val tick = TableSession.membersTick
+                    val players = remember(campaign.id, tick) { CampaignStore.players(prefs, campaign.id) }
+                    players.forEach { Text("${it.name} • Jogador", color = Ink, fontWeight = FontWeight.SemiBold) }
+                    Text(
+                        (if (players.isEmpty()) "Ninguém entrou ainda. " else "") +
+                            (if (isActive) "Para convidar: abra a mesa na aba Mesa e passe o endereço e este código; o jogador usa Campanhas > Entrar em campanha."
+                            else "Para convidar: torne esta campanha ativa, abra a mesa na aba Mesa e passe o endereço e este código."),
+                        color = Muted, fontSize = 12.sp
+                    )
+                } else {
+                    Text("Você entrou nesta campanha pelo código do mestre. Os personagens que você criar ficam nela.", color = Muted, fontSize = 12.sp)
+                }
             }
         }
         if (isMaster) item {
@@ -541,5 +574,62 @@ private fun CreateCampaignDialog(
             TextButton(onClick = { onCreate(name, description, systemId) }, enabled = name.isNotBlank()) { Text("Criar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+/** Jogador: digita endereço e código do mestre e recebe a campanha (0.10.6). Mesma rede Wi-Fi, mesa aberta. */
+@Composable
+private fun JoinCampaignDialog(prefs: SharedPreferences, userId: String, onJoined: (Campaign) -> Unit, onDismiss: () -> Unit) {
+    val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+    var address by remember { mutableStateOf(prefs.getString("net_host", "") ?: "") }
+    var code by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(prefs.getString("player_display_name", "") ?: "") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text("Entrar em campanha") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Peça ao mestre o endereço e o código da campanha. Ele precisa ter aberto a mesa (aba Mesa) e vocês devem estar na mesma rede Wi-Fi.",
+                    color = Muted, fontSize = 13.sp
+                )
+                OutlinedTextField(address, { address = it }, label = { Text("Endereço do mestre (ex.: 192.168.1.23)") }, singleLine = true)
+                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(4) }, label = { Text("Código da campanha") }, singleLine = true)
+                OutlinedTextField(name, { name = it }, label = { Text("Seu nome") }, singleLine = true)
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !busy, onClick = {
+                if (address.isBlank() || code.length != 4) {
+                    error = "Informe o endereço do mestre e o código de 4 dígitos."
+                } else {
+                    error = ""
+                    busy = true
+                    prefs.edit().putString("net_host", address.trim()).putString("player_display_name", name.trim()).apply()
+                    val target = splitAddress(address)
+                    requestCampaign(
+                        host = target.first, port = target.second,
+                        msg = ClientMsg.JoinCampaign(code, userId, name.trim().ifBlank { "Jogador" }),
+                        post = { action -> mainHandler.post { action() } },
+                        onResult = { result ->
+                            busy = false
+                            when (result) {
+                                is JoinResult.Joined -> {
+                                    val joined = CampaignStore.joinRemote(prefs, result.campaign)
+                                    if (joined == null) error = "Esta campanha é sua: neste aparelho você já é o mestre dela." else onJoined(joined)
+                                }
+                                is JoinResult.Denied -> error = "Código errado."
+                                is JoinResult.Failed -> error = result.reason
+                            }
+                            Unit
+                        }
+                    )
+                }
+            }) { Text(if (busy) "Entrando…" else "Entrar") }
+        },
+        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancelar") } }
     )
 }

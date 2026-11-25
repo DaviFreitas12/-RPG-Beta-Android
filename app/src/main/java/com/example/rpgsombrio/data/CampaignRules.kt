@@ -73,3 +73,37 @@ fun releaseSheets(campaignId: String, sheets: List<CharacterSheet>): List<Charac
 /** Mover a ficha para essa campanha troca o sistema dela? (Tirar da campanha nunca troca.) */
 fun sheetMoveChangesSystem(sheet: CharacterSheet, campaign: Campaign?): Boolean =
     campaign != null && campaign.systemId != sheet.systemId
+
+// --- Entrada na campanha por código (0.10.6) ---
+
+/** O que o mestre manda ao jogador que entra com o código: a campanha, sem o código de convite. */
+data class CampaignInfo(
+    val id: String, val name: String, val description: String, val systemId: String,
+    val masterUserId: String, val creationMethod: String, val hpMethod: String
+)
+
+/** Jogador que entrou na campanha (lista do mestre, aba Membros). */
+data class CampaignPlayer(val userId: String, val name: String)
+
+fun infoOfCampaign(c: Campaign): CampaignInfo = CampaignInfo(
+    id = c.id, name = c.name, description = c.description, systemId = c.systemId,
+    masterUserId = c.masterUserId, creationMethod = c.creationMethod, hpMethod = c.hpMethod
+)
+
+/**
+ * A campanha como ela fica no aparelho do jogador: mesmo id e mesmo mestre (então o papel aqui é Jogador), sem código de
+ * convite (só o mestre repassa o código) e sempre desarquivada, porque entrar de novo reativa a campanha.
+ */
+fun campaignFromMaster(info: CampaignInfo): Campaign = Campaign(
+    id = info.id, name = info.name, description = info.description, masterUserId = info.masterUserId,
+    systemId = info.systemId, inviteCode = null, isArchived = false,
+    creationMethod = info.creationMethod, hpMethod = info.hpMethod
+)
+
+/** Entra ou atualiza o nome do jogador na lista. Quem volta a entrar não duplica. Id vazio é ignorado. */
+fun upsertPlayer(players: List<CampaignPlayer>, userId: String, name: String): List<CampaignPlayer> {
+    if (userId.isBlank()) return players
+    val entry = CampaignPlayer(userId, name.trim().take(40).ifBlank { "Jogador" })
+    val at = players.indexOfFirst { it.userId == userId }
+    return if (at < 0) players + entry else players.mapIndexed { i, p -> if (i == at) entry else p }
+}

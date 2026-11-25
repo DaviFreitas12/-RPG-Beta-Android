@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.6 — Entrar na campanha pelo código
+O jogador agora entra na campanha do mestre: digita o endereço e o código na aba Campanha e a campanha aparece no aparelho dele. Veja `MUDANCAS-0.10.6.md`. versionCode 36.
+- **Aba Campanha**: botão "Entrar em campanha (com código do mestre)": endereço, código de 4 dígitos e nome. A campanha vem do mestre com o mesmo id, e este aparelho vira Jogador nela.
+- **Mesa e campanha com um código só**: ao abrir a mesa, o código dela passa a ser o de convite da campanha ativa. Quem entra na mesa também recebe a campanha.
+- **Membros**: o mestre vê quem entrou na campanha (nome do jogador).
+- Rede: mensagem `JOINC` (pedido de entrada) e linha `CAMP|...` (campanha), conversa curta que fecha logo. Mesas abertas sem campanha recusam o pedido.
+- Testes novos: `CampaignJoinTest`. **Não foi compilado** nesta análise: rode `gradle testDebugUnitTest assembleDebug` (o CI do GitHub faz isso).
+
 ## 0.10.4 — Nível controlado pelo mestre (etapa 5 do plano)
 Em campanha de D&D o jogador não edita o nível: o mestre sobe e remove, e o jogador conclui um assistente de level up. Veja `MUDANCAS-0.10.4.md`. versionCode 34.
 - **Motor de nível** (`data/LevelRules.kt`, Kotlin puro): subir, concluir e remover nível, histórico por ficha (vida ganha e pontos de atributo), vida pelo método da campanha.
