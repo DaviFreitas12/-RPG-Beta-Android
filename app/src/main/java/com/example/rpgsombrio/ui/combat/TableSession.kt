@@ -8,7 +8,15 @@ import android.os.Vibrator
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.rpgsombrio.data.Campaign
+import com.example.rpgsombrio.data.CampaignInfo
+import com.example.rpgsombrio.data.CampaignStore
+import com.example.rpgsombrio.data.SheetStore
+import com.example.rpgsombrio.data.characterFromJson
+import com.example.rpgsombrio.data.mergeReceivedSheet
+import com.example.rpgsombrio.data.infoOfCampaign
 import com.example.rpgsombrio.engine.ClientMsg
+import com.example.rpgsombrio.engine.encode
 import com.example.rpgsombrio.engine.SyncSnapshot
 import com.example.rpgsombrio.engine.TABLE_PORT
 import com.example.rpgsombrio.engine.TableClient
@@ -38,6 +46,15 @@ object TableSession {
     var addresses by mutableStateOf<List<String>>(emptyList())
         private set
     var clients by mutableStateOf(0)
+        private set
+    /** Mestre: nome da campanha ligada à mesa (o código da mesa é o código de convite dela). */
+    var campaignName by mutableStateOf("")
+        private set
+    /** Sobe a cada jogador que entra na campanha; a aba Campanha usa para recarregar a lista de membros. */
+    var membersTick by mutableStateOf(0)
+        private set
+    /** Sobe a cada ficha de jogador recebida; a lista de fichas usa para recarregar. */
+    var sheetsTick by mutableStateOf(0)
         private set
     /** Último retrato da luta recebido do mestre (cliente). */
     var snapshot by mutableStateOf<SyncSnapshot?>(null)
@@ -71,14 +88,22 @@ object TableSession {
     }
 
     /** Abre a mesa. Devolve null se deu certo ou o motivo da falha. */
-    fun startHost(): String? {
+    fun startHost(campaign: Campaign? = null): String? {
         stop()
-        val joinCode = newJoinCode()
-        val newHost = TableHost(joinCode, post, { playerId, msg -> deliver(playerId, msg) }, { count -> clients = count })
+        // Com campanha, o código da mesa é o de convite dela: um código só para entrar na campanha e na mesa.
+        val joinCode = campaign?.inviteCode?.takeIf { it.length == 4 && it.all(Char::isDigit) } ?: newJoinCode()
+        val line = campaign?.let { infoOfCampaign(it).encode() }.orEmpty()
+        val campaignId = campaign?.id.orEmpty()
+        val newHost = TableHost(
+            code = joinCode, post = post, onMessage = { playerId, msg -> deliver(playerId, msg) }, onClientCount = { count -> clients = count },
+            campaignLine = line, onPushSheet = { push -> onSheetPushed(campaignId, push) },
+            onJoinCampaign = { join -> onPlayerJoinedCampaign(campaignId, join) }
+        )
         val error = newHost.start(TABLE_PORT)
         if (error != null) return error
         host = newHost
         code = joinCode
+        campaignName = campaign?.name.orEmpty()
         addresses = localIpv4Addresses()
         clients = 0
         mode = "host"
@@ -89,7 +114,35 @@ object TableSession {
     fun stop() {
         host?.stop(); host = null
         client?.close(); client = null
-        mode = "off"; status = ""; code = ""; addresses = emptyList(); clients = 0; snapshot = null; myId = ""
+        mode = "off"; status = ""; code = ""; addresses = emptyList(); clients = 0; snapshot = null; myId = ""; campaignName = ""
+    }
+
+    private fun localPrefs() = appContext?.getSharedPreferences("rpg_local", Context.MODE_PRIVATE)
+
+    /** Mestre: um jogador entrou na campanha pelo código. Guarda o nome na lista de membros. */
+    private fun onPlayerJoinedCampaign(campaignId: String, join: ClientMsg.JoinCampaign) {
+        val prefs = localPrefs() ?: return
+        if (campaignId.isBlank()) return
+        CampaignStore.addPlayer(prefs, campaignId, join.userId, join.name)
+        membersTick++
+    }
+
+    /** Mestre: um jogador mandou uma ficha. Entra na lista de fichas da campanha (ver [mergeReceivedSheet]). */
+    private fun onSheetPushed(campaignId: String, push: ClientMsg.PushSheet) {
+        val prefs = localPrefs() ?: return
+        if (campaignId.isBlank()) return
+        val incoming = characterFromJson(push.json) ?: return
+        val merged = mergeReceivedSheet(SheetStore.loadCharacters(prefs), incoming, campaignId, push.userId) ?: return
+        SheetStore.saveCharacters(prefs, merged)
+        CampaignStore.addPlayer(prefs, campaignId, push.userId, push.name)
+        sheetsTick++
+        membersTick++
+    }
+
+    /** Jogador: o mestre mandou a campanha ao entrar na mesa. Guarda (ou atualiza) e deixa ativa. */
+    private fun onCampaignReceived(info: CampaignInfo) {
+        val prefs = localPrefs() ?: return
+        CampaignStore.joinRemote(prefs, info)
     }
 
     /** Envia o retrato da luta aos jogadores (só no modo mestre). */
@@ -102,7 +155,7 @@ object TableSession {
         val host = clean.substringBefore(':')
         val port = clean.substringAfter(':', "").toIntOrNull() ?: TABLE_PORT
         mode = "client"; status = "connecting"; myId = hello.playerId
-        val c = TableClient(post, { onSnapshot(it) }, { status = it })
+        val c = TableClient(post, { onSnapshot(it) }, { status = it }, { onCampaignReceived(it) })
         client = c
         c.connect(host, port, hello)
     }

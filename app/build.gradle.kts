@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.rpgsombrio"
         minSdk = 26
         targetSdk = 35
-        versionCode = 29
-        versionName = "0.9.20"
+        versionCode = 37
+        versionName = "0.10.7"
     }
 
     compileOptions {

@@ -249,7 +249,23 @@ data class CharacterSheet(
     val equipment: String = "",
     val notes: String = "",
     /** Papel de quem usa a ficha na mesa (0.9.14): "jogador" ou "mestre". Define a interface da arena de batalha. */
-    val role: String = SheetRole.PLAYER
+    val role: String = SheetRole.PLAYER,
+    /** Campanha a que a ficha pertence (0.10.x). Vazio = "Sem campanha" (ficha solta ou rascunho). */
+    val campaignId: String = "",
+    /** Estado da criação (0.10.3): "" = sem controle (fichas antigas, sistemas livres), "DRAFT" = em criação, "DONE" = finalizada. Ver [CreationState]. */
+    val creation: String = CreationState.NONE,
+    /** Valores comprados/rolados antes dos bônus. Só preenchido em fichas que passaram pela criação. */
+    val baseAttributes: Map<String, Int> = emptyMap(),
+    /** Bônus de raça e antecedente, aplicados depois da compra. `attributes` guarda o valor final (base + bônus, com teto). */
+    val attributeBonuses: Map<String, Int> = emptyMap(),
+    /** Histórico de nível (0.10.4): o que cada level up concedeu, para o desfazer ser exato. Ver [LevelEntry]. */
+    val levelHistory: List<LevelEntry> = emptyList(),
+    /** Dado de vida da classe (6, 8, 10 ou 12), guardado na primeira vez que o jogador conclui um level up. 0 = não informado. */
+    val hitDie: Int = 0,
+    /** Aumentos de atributo extras concedidos pelo mestre (0.10.5), além dos níveis 4, 8, 12, 16 e 19. Ver [AsiGrant]. */
+    val asiGrants: List<AsiGrant> = emptyList(),
+    /** Quem criou/possui a ficha (0.10.5). Vazio = criada antes da 0.10.5: vale como do aparelho que a tem. Define o que o jogador vê. */
+    val ownerUserId: String = ""
 )
 
 /** Papéis aceitos em [CharacterSheet.role]. Valores gravados em minúsculas; qualquer outro texto vale como jogador. */
@@ -549,7 +565,22 @@ private fun CharacterSheet.toJson(): JSONObject = JSONObject()
     .put("personality", personality).put("ideals", ideals).put("bonds", bonds).put("flaws", flaws)
     .put("money", money)
     .put("equipment", equipment).put("notes", notes)
-    .put("role", role)
+    .put("role", role).put("campaignId", campaignId)
+    .put("creation", creation)
+    .put("baseAttributes", intMapToJson(baseAttributes)).put("attributeBonuses", intMapToJson(attributeBonuses))
+    .put("hitDie", hitDie).put("ownerUserId", ownerUserId)
+    .put("asiGrants", JSONArray().also { a ->
+        asiGrants.forEach {
+            a.put(JSONObject().put("id", it.id).put("points", it.points).put("reason", it.reason)
+                .put("applied", intMapToJson(it.applied)).put("done", it.done))
+        }
+    })
+    .put("levelHistory", JSONArray().also { a ->
+        levelHistory.forEach {
+            a.put(JSONObject().put("level", it.level).put("hp", it.hpGained).put("asiGranted", it.asiGranted)
+                .put("asiApplied", intMapToJson(it.asiApplied)).put("done", it.done).put("note", it.note))
+        }
+    })
 
 private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     id = o.getString("id"),
@@ -589,7 +620,25 @@ private fun decodeCharacter(o: JSONObject): CharacterSheet = CharacterSheet(
     personality = o.optString("personality"), ideals = o.optString("ideals"), bonds = o.optString("bonds"),
     flaws = o.optString("flaws"), money = o.optString("money"),
     equipment = o.optString("equipment"), notes = o.optString("notes"),
-    role = SheetRole.normalize(o.optString("role", SheetRole.PLAYER))
+    role = SheetRole.normalize(o.optString("role", SheetRole.PLAYER)),
+    campaignId = o.optString("campaignId"),
+    creation = CreationState.normalize(o.optString("creation")),
+    baseAttributes = jsonToIntMap(o.optJSONObject("baseAttributes")),
+    attributeBonuses = jsonToIntMap(o.optJSONObject("attributeBonuses")),
+    hitDie = o.optInt("hitDie"),
+    ownerUserId = o.optString("ownerUserId"),
+    asiGrants = o.optJSONArray("asiGrants").objects().map {
+        AsiGrant(
+            id = it.optString("id"), points = it.optInt("points"), reason = it.optString("reason"),
+            applied = jsonToIntMap(it.optJSONObject("applied")), done = it.optBoolean("done")
+        )
+    },
+    levelHistory = o.optJSONArray("levelHistory").objects().map {
+        LevelEntry(
+            level = it.optInt("level"), hpGained = it.optInt("hp"), asiGranted = it.optInt("asiGranted"),
+            asiApplied = jsonToIntMap(it.optJSONObject("asiApplied")), done = it.optBoolean("done"), note = it.optString("note")
+        )
+    }
 )
 
 private fun MonsterSheet.toJson(): JSONObject = JSONObject()
@@ -684,6 +733,15 @@ object SheetStore {
      * nome exibido, que ainda é aceito como alternativa.
      */
     fun activeSystemId(prefs: SharedPreferences): String {
+        // 0.10.x: o sistema ativo é o da campanha ativa. Sem campanha, vale o jeito antigo.
+        CampaignStore.active(prefs)?.systemId?.let { id ->
+            if (systemOptions(prefs).any { it.id == id }) return id
+        }
+        return legacyActiveSystemId(prefs)
+    }
+
+    /** Sistema guardado antes das campanhas múltiplas (0.9.x). Também alimenta a migração para a primeira campanha. */
+    fun legacyActiveSystemId(prefs: SharedPreferences): String {
         val options = systemOptions(prefs)
         prefs.getString("active_campaign_system_id", null)?.let { id ->
             if (options.any { it.id == id }) return id
@@ -693,11 +751,30 @@ object SheetStore {
         return RuleSystemCatalog.systems.firstOrNull { it.name == name }?.id ?: "dnd5e"
     }
 
-    fun setActiveSystem(prefs: SharedPreferences, systemId: String) {
+    /**
+     * Define o sistema da campanha ativa. Devolve false (sem mudar nada) quando a campanha já tem personagens:
+     * o sistema dela fica fixo para as fichas continuarem coerentes.
+     */
+    fun setActiveSystem(prefs: SharedPreferences, systemId: String): Boolean {
+        val active = CampaignStore.active(prefs)
+        if (active != null && active.systemId != systemId) {
+            if (!canChangeCampaignSystem(active.id, loadCharacters(prefs))) return false
+            CampaignStore.update(prefs, active.copy(systemId = systemId))
+        }
         prefs.edit()
             .putString("active_campaign_system_id", systemId)
             .putString("active_campaign_system", systemDisplayName(prefs, systemId))
             .apply()
+        return true
+    }
+
+    /**
+     * Move a ficha para uma campanha (ou tira dela, com [campaign] nulo). Se o sistema da campanha é outro, a ficha é
+     * vinculada a ele sem apagar nada (ver [rebindCharacter]).
+     */
+    fun moveToCampaign(prefs: SharedPreferences, sheet: CharacterSheet, campaign: Campaign?): CharacterSheet {
+        val bound = if (sheetMoveChangesSystem(sheet, campaign)) rebindCharacter(prefs, sheet, campaign!!.systemId) else sheet
+        return bound.copy(campaignId = campaign?.id.orEmpty())
     }
 
     /**
@@ -899,3 +976,9 @@ object SheetStore {
         )
     )
 }
+
+/** Ficha em texto JSON, para mandar pela rede (0.10.7). */
+fun CharacterSheet.toJsonString(): String = toJson().toString()
+
+/** Lê uma ficha de um texto JSON; devolve null se estiver malformado. */
+fun characterFromJson(raw: String): CharacterSheet? = runCatching { decodeCharacter(JSONObject(raw)) }.getOrNull()

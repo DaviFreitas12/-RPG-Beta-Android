@@ -52,3 +52,6 @@ Autenticação, campanhas multiusuário com convite, regras de autorização no 
 - **Condições vindas do jogador** (hoje só o mestre marca) e salvaguardas contra a morte no celular do jogador.
 - **Descoberta automática** (NSD/mDNS) como atalho opcional ao IP digitado; em Android costuma ser instável.
 - **Teste real em dois ou mais aparelhos**: a camada de rede foi testada em localhost, mas nunca em Wi-Fi nem em zona Wi-Fi.
+
+## Plano das campanhas (0.10.x)
+Plano completo em `PLANO-CAMPANHAS.pdf`. Feitas até a 0.10.4: etapas 1 a 3 (dados e migração, aba Campanhas, personagens na campanha), 4 (calculadora de pontos e trava de criação) e 5 (nível controlado pelo mestre). Faltam: 6 poderes do mestre, 7 conexão com a mesa em rede.

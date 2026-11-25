@@ -1,5 +1,6 @@
 package com.example.rpgsombrio.engine
 
+import com.example.rpgsombrio.data.CampaignInfo
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.IOException
@@ -20,6 +21,9 @@ import java.util.concurrent.Executors
  * novas e sem Android: [post] entrega os retornos para a thread principal (no app, um Handler); nos testes, executa na hora.
  * Toda escrita na rede sai por uma thread própria, porque o Android proíbe rede na thread principal.
  */
+
+/** Tamanho máximo de uma linha de ficha (0.10.7); as demais mensagens continuam limitadas a 4096. */
+private const val MAX_SHEET_LINE = 600_000
 
 private class Conn(val id: String, val socket: Socket) {
     val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
@@ -44,7 +48,13 @@ class TableHost(
     private val post: (() -> Unit) -> Unit,
     /** Recebe (idDaFichaDoJogador, mensagem), já na thread principal. */
     private val onMessage: (String, ClientMsg) -> Unit,
-    private val onClientCount: (Int) -> Unit
+    private val onClientCount: (Int) -> Unit,
+    /** Linha `CAMP|...` da campanha aberta (vazia se a mesa não está ligada a uma campanha). */
+    private val campaignLine: String = "",
+    /** Um jogador mandou uma ficha (código certo), já na thread principal. */
+    private val onPushSheet: (ClientMsg.PushSheet) -> Unit = {},
+    /** Alguém entrou na campanha com o código, já na thread principal. */
+    private val onJoinCampaign: (ClientMsg.JoinCampaign) -> Unit = {}
 ) {
     private val conns = ConcurrentHashMap<String, Conn>()
     private val io = newIoThread()
@@ -79,9 +89,23 @@ class TableHost(
             conn.socket.soTimeout = 10_000 // quem não se apresenta em 10 s é dispensado
             while (true) {
                 val line = conn.reader.readLine() ?: break
-                if (line.length > 4096) break
+                if (line.length > (if (line.startsWith("SHEET|")) MAX_SHEET_LINE else 4096)) break
                 val msg = parseClientMsg(line)
                 if (!conn.authed) {
+                    if (msg is ClientMsg.JoinCampaign) {
+                        // Entrada na campanha: uma resposta e a conversa acaba (a conexão fecha no finally).
+                        if (msg.code != code || campaignLine.isEmpty()) { conn.send("DENIED|codigo"); break }
+                        conn.send(campaignLine)
+                        post { onJoinCampaign(msg) }
+                        break
+                    }
+                    if (msg is ClientMsg.PushSheet) {
+                        // Envio de ficha: responde OK a cada linha e continua ouvindo até o jogador fechar.
+                        if (msg.code != code || campaignLine.isEmpty()) { conn.send("DENIED|codigo"); break }
+                        post { onPushSheet(msg) }
+                        conn.send("OK")
+                        continue
+                    }
                     if (msg !is ClientMsg.Hello) break
                     if (msg.code != code) { conn.send("DENIED|codigo"); break } // esta thread não é a principal, pode escrever direto
                     // Reconexão do mesmo jogador: a conexão antiga (talvez já morta) sai.
@@ -91,7 +115,7 @@ class TableHost(
                     conn.socket.soTimeout = 0
                     conns[conn.id] = conn
                     val snapshot = lastSnapshot
-                    io.execute { conn.send("WELCOME"); if (snapshot.isNotEmpty()) conn.send(snapshot) }
+                    io.execute { conn.send("WELCOME"); if (campaignLine.isNotEmpty()) conn.send(campaignLine); if (snapshot.isNotEmpty()) conn.send(snapshot) }
                     val size = conns.size
                     post { onClientCount(size) }
                     post { onMessage(msg.playerId, msg) }
@@ -136,7 +160,9 @@ class TableClient(
     private val post: (() -> Unit) -> Unit,
     private val onSnapshot: (SyncSnapshot) -> Unit,
     /** "connecting", "connected", "reconnecting" ou "denied" (código errado: não tenta de novo). */
-    private val onStatus: (String) -> Unit
+    private val onStatus: (String) -> Unit,
+    /** A campanha do mestre, recebida logo depois de entrar na mesa (0.10.6). */
+    private val onCampaign: (CampaignInfo) -> Unit = {}
 ) {
     @Volatile private var closed = false
     @Volatile private var conn: Conn? = null
@@ -162,6 +188,7 @@ class TableClient(
                     if (line == "WELCOME") post { onStatus("connected") }
                     else if (line.startsWith("DENIED")) { denied = true; post { onStatus("denied") } }
                     else if (line.startsWith("SNAP|")) decodeSnapshot(line)?.let { s -> post { onSnapshot(s) } }
+                    else if (line.startsWith("CAMP|")) decodeCampaign(line)?.let { info -> post { onCampaign(info) } }
                 }
                 c.close()
                 if (denied) { closed = true; return }
@@ -195,4 +222,88 @@ fun localIpv4Addresses(): List<String> = try {
         .mapNotNull { it.hostAddress }
 } catch (_: Exception) {
     emptyList()
+}
+
+/** Resultado do pedido de entrada na campanha. */
+sealed class JoinResult {
+    data class Joined(val campaign: CampaignInfo) : JoinResult()
+    object Denied : JoinResult()
+    data class Failed(val reason: String) : JoinResult()
+}
+
+/**
+ * Jogador: pede ao mestre para entrar na campanha com o código (0.10.6). É uma conversa curta: manda uma linha, lê a
+ * resposta e fecha. Roda em thread própria; [onResult] volta pela thread principal ([post]).
+ */
+fun requestCampaign(
+    host: String, port: Int, msg: ClientMsg.JoinCampaign,
+    post: (() -> Unit) -> Unit, onResult: (JoinResult) -> Unit
+) {
+    Thread({
+        val result: JoinResult = try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, port), 4000)
+                socket.soTimeout = 5000
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
+                val writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8))
+                writer.write(msg.encode()); writer.write("\n"); writer.flush()
+                val line = reader.readLine()
+                when {
+                    line == null -> JoinResult.Failed("O mestre fechou a conexão. Confira se a mesa está aberta e se ele está na mesma versão do app.")
+                    line.startsWith("DENIED") -> JoinResult.Denied
+                    else -> decodeCampaign(line)?.let { JoinResult.Joined(it) } ?: JoinResult.Failed("Resposta inesperada do mestre.")
+                }
+            }
+        } catch (_: java.net.SocketTimeoutException) {
+            JoinResult.Failed("O mestre não respondeu a tempo.")
+        } catch (_: Exception) {
+            JoinResult.Failed("Não consegui falar com o mestre. Confira o endereço, se a mesa está aberta e se os dois estão na mesma rede Wi-Fi.")
+        }
+        post { onResult(result) }
+    }, "mesa-campanha").apply { isDaemon = true }.start()
+}
+
+/** Resultado do envio de fichas ao mestre. */
+sealed class PushResult {
+    data class Sent(val count: Int) : PushResult()
+    object Denied : PushResult()
+    data class Failed(val reason: String) : PushResult()
+}
+
+/**
+ * Jogador: manda as fichas (texto JSON) ao mestre da campanha (0.10.7). Uma conexão curta: uma linha por ficha, o
+ * mestre responde OK a cada uma. Roda em thread própria; [onResult] volta pela thread principal ([post]).
+ */
+fun pushSheets(
+    host: String, port: Int, code: String, userId: String, name: String, sheets: List<String>,
+    post: (() -> Unit) -> Unit, onResult: (PushResult) -> Unit
+) {
+    Thread({
+        val result: PushResult = try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, port), 4000)
+                socket.soTimeout = 8000
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
+                val writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8))
+                var sent = 0
+                var denied = false
+                for (json in sheets) {
+                    writer.write(ClientMsg.PushSheet(code, userId, name, json).encode()); writer.write("\n"); writer.flush()
+                    val line = reader.readLine() ?: break
+                    if (line.startsWith("DENIED")) { denied = true; break }
+                    if (line == "OK") sent++
+                }
+                when {
+                    denied -> PushResult.Denied
+                    sent == sheets.size -> PushResult.Sent(sent)
+                    else -> PushResult.Failed("O mestre recebeu $sent de ${sheets.size} fichas. Tente de novo.")
+                }
+            }
+        } catch (_: java.net.SocketTimeoutException) {
+            PushResult.Failed("O mestre não respondeu a tempo.")
+        } catch (_: Exception) {
+            PushResult.Failed("Não consegui falar com o mestre. Confira se a mesa está aberta e se vocês estão na mesma rede Wi-Fi.")
+        }
+        post { onResult(result) }
+    }, "mesa-fichas").apply { isDaemon = true }.start()
 }

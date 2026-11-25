@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.10.7 — Fichas dos jogadores chegam ao mestre
+Corrige: o personagem criado pelo jogador não aparecia nas Fichas do mestre, porque cada aparelho guarda só as próprias fichas. Veja `MUDANCAS-0.10.7.md`. versionCode 37.
+- **Jogador**: as fichas da campanha são enviadas ao mestre sozinhas ao sair da lista de fichas, e há o botão "Enviar minhas fichas ao mestre" na aba Campanha. Endereço e código ficam guardados ao entrar na campanha.
+- **Mestre**: a ficha recebida entra na lista de Fichas, na campanha e com o jogador como dono; enviar de novo atualiza a mesma ficha. Ninguém sobrescreve a ficha de outro. A foto da ficha não vai (o arquivo está só no aparelho do jogador).
+- Rede: mensagem `SHEET` (uma linha por ficha, até 600 mil caracteres) com resposta `OK`.
+- Testes novos: `SheetPushTest`. **Não foi compilado** nesta análise: rode `gradle testDebugUnitTest assembleDebug`.
+
+## 0.10.6 — Entrar na campanha pelo código
+O jogador agora entra na campanha do mestre: digita o endereço e o código na aba Campanha e a campanha aparece no aparelho dele. Veja `MUDANCAS-0.10.6.md`. versionCode 36.
+- **Aba Campanha**: botão "Entrar em campanha (com código do mestre)": endereço, código de 4 dígitos e nome. A campanha vem do mestre com o mesmo id, e este aparelho vira Jogador nela.
+- **Mesa e campanha com um código só**: ao abrir a mesa, o código dela passa a ser o de convite da campanha ativa. Quem entra na mesa também recebe a campanha.
+- **Membros**: o mestre vê quem entrou na campanha (nome do jogador).
+- Rede: mensagem `JOINC` (pedido de entrada) e linha `CAMP|...` (campanha), conversa curta que fecha logo. Mesas abertas sem campanha recusam o pedido.
+- Testes novos: `CampaignJoinTest`. **Não foi compilado** nesta análise: rode `gradle testDebugUnitTest assembleDebug` (o CI do GitHub faz isso).
+
+## 0.10.4 — Nível controlado pelo mestre (etapa 5 do plano)
+Em campanha de D&D o jogador não edita o nível: o mestre sobe e remove, e o jogador conclui um assistente de level up. Veja `MUDANCAS-0.10.4.md`. versionCode 34.
+- **Motor de nível** (`data/LevelRules.kt`, Kotlin puro): subir, concluir e remover nível, histórico por ficha (vida ganha e pontos de atributo), vida pelo método da campanha.
+- **Mestre**: botões Subir e Remover nível por personagem e "Subir nível de todos" na aba Campanha; na ficha, em Perfil. Remover desfaz exatamente o que o nível concedeu, mesmo se o jogador já gastou os pontos.
+- **Jogador**: aviso "Subiu de nível" na ficha e assistente com vida (média fixa ou valor digitado do dado), aumento de atributo (+2 pontos só nos níveis 4, 8, 12, 16 e 19, teto 20) e anotação de características e magias. Bônus de proficiência automático.
+- **Campanha**: o mestre escolhe a vida no level up (média fixa, padrão, ou rolagem digitada).
+- Campos novos: `CharacterSheet.levelHistory`/`hitDie`, `Campaign.hpMethod` (leitura tolerante).
+- Testes novos: `LevelRulesTest` (subir/remover do nível 1 ao 20, teto 20). Motor compilado e testado na JVM; a interface **não foi compilada** nesta análise.
+
+## 0.10.3 — Calculadora de pontos e trava de criação (etapa 4 do plano)
+Personagem de D&D agora é criado por uma regra: compra de pontos (27, valores de 8 a 15), array padrão ou rolagem, com bônus de raça e antecedente à parte e teto final de 20. Veja `MUDANCAS-0.10.3.md`. versionCode 33.
+- **Motor de regra de criação** (`data/CreationRules.kt`, Kotlin puro): métodos compra de pontos, array padrão, rolagem e livre; tabela de custos do D&D (8=0 … 15=9); conferência, finalização e reabertura.
+- **Ficha em dois estados**: "em criação" (calculadora aberta na aba Editar > Atributos) e "finalizada" (atributos travados). Ficha nova de D&D já nasce em criação; fichas antigas e de outros sistemas continuam livres.
+- **Bônus de raça e antecedente** em campo separado, somados depois da compra; o valor final para em 20 e os pontos gastos continuam exatos.
+- **Mestre escolhe o método** em Campanha > Criação de personagem (padrão: compra de pontos no D&D; livre nos demais sistemas).
+- Novos campos na ficha (`creation`, `baseAttributes`, `attributeBonuses`) e na campanha (`creationMethod`); leitura tolerante, fichas antigas abrem como antes.
+- Testes novos: `CreationRulesTest` (36 casos). Os testes do motor foram compilados e executados na JVM; a interface **não foi compilada** nesta análise: rode `gradle testDebugUnitTest assembleDebug` (o CI do GitHub faz isso).
+
+## 0.10.2 — Campanhas com mestre (etapas 1 a 3 do plano)
+A campanha única virou uma lista de campanhas: quem cria é o mestre, e os personagens nascem dentro dela. Veja `MUDANCAS-0.10.2.md`. versionCode 32.
+- **Etapa 1, dados e migração** (0.10.0): `CampaignStore` guarda várias campanhas; a ficha ganhou `campaignId`; a campanha antiga vira a primeira da lista, com este aparelho como mestre; as fichas existentes ficam em "Sem campanha".
+- **Etapa 2, aba Campanhas** (0.10.1): lista, criar, abrir, editar, tornar ativa, arquivar/restaurar e excluir; papel (mestre/jogador) por campanha; sistema da campanha fixo enquanto ela tem personagens.
+- **Etapa 3, personagens na campanha** (0.10.2): "Nova ficha" pergunta onde criar e herda o sistema da campanha; lista agrupada por campanha e "Sem campanha"; mover ficha para uma campanha (com aviso se o sistema muda) ou tirar dela.
+- Testes novos: `CampaignRulesTest`. **Não foi compilado** nesta análise: rode `gradle testDebugUnitTest assembleDebug` (o CI do GitHub faz isso) e passe pelo fluxo antes de levar à mesa.
+
 ## 0.9.20 — Aba Jogar (ficha de consulta para a mesa)
 A ficha do jogador agora abre num painel só de leitura, com os bônus já calculados e à vista. Cada item toca para rolar. Veja `MUDANCAS-0.9.20.md`. versionCode 29.
 

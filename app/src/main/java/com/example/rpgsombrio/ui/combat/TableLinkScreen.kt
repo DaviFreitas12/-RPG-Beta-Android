@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.data.CampaignStore
 import com.example.rpgsombrio.data.CharacterSheet
 import com.example.rpgsombrio.data.ItemEntry
 import com.example.rpgsombrio.data.SystemProfiles
@@ -80,6 +81,9 @@ internal fun TableLinkCard(
                 if (addresses.size > 1) Text("Mais de um endereço: use o da rede onde os jogadores estão.", color = Muted, fontSize = 12.sp)
             }
             Text("Código: ${TableSession.code}", color = Accent, fontWeight = FontWeight.Black, fontSize = 26.sp)
+            if (TableSession.campaignName.isNotBlank()) {
+                Text("Campanha: ${TableSession.campaignName}. Este código também é o de convite: os jogadores entram na campanha por ele (aba Campanha > Entrar em campanha).", color = Muted, fontSize = 12.sp)
+            }
             Text("Jogadores conectados: ${TableSession.clients}", color = Muted, fontSize = 13.sp)
             Text("Mantenha este app aberto. A tela fica ligada enquanto a mesa estiver aberta.", color = Muted, fontSize = 12.sp)
             OutlinedButton(onClick = { TableSession.stop() }, modifier = Modifier.fillMaxWidth()) { Text("Fechar mesa") }
@@ -99,7 +103,7 @@ internal fun TableLinkCard(
         ) {
             if (playerSheet == null) {
                 Button(
-                    onClick = { error = TableSession.startHost().orEmpty() }, modifier = Modifier.fillMaxWidth(),
+                    onClick = { error = TableSession.startHost(CampaignStore.active(prefs)).orEmpty() }, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Brand)
                 ) { Text("Abrir mesa") }
             } else {

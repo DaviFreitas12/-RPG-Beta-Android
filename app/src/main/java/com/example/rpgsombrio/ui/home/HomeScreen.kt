@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.data.CampaignStore
 import com.example.rpgsombrio.data.SheetStore
 import com.example.rpgsombrio.data.systemDisplayName
 import com.example.rpgsombrio.ui.components.InfoPill
@@ -32,7 +33,7 @@ import com.example.rpgsombrio.ui.theme.Muted
 internal fun HomeScreen(modifier: Modifier = Modifier, onNavigate: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("rpg_local", Context.MODE_PRIVATE) }
-    val campaignName = remember { prefs.getString("active_campaign_name", "Minha campanha") ?: "Minha campanha" }
+    val campaignName = remember { CampaignStore.active(prefs)?.name ?: "Sem campanha ativa" }
     val systemName = remember { systemDisplayName(prefs, SheetStore.activeSystemId(prefs)) }
     val hasCharacters = remember { SheetStore.loadCharacters(prefs).isNotEmpty() }
     Column(modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp)) {
