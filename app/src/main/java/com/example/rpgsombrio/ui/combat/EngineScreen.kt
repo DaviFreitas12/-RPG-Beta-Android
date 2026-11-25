@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rpgsombrio.data.CampaignStore
 import com.example.rpgsombrio.data.CharacterSheet
 import com.example.rpgsombrio.data.CombatStore
 import com.example.rpgsombrio.data.ItemEntry
@@ -65,6 +66,7 @@ import com.example.rpgsombrio.data.SystemProfiles
 import com.example.rpgsombrio.data.adjustedDamage
 import com.example.rpgsombrio.data.damageMultiplierFor
 import com.example.rpgsombrio.data.fitsSystem
+import com.example.rpgsombrio.data.visibleSheets
 import com.example.rpgsombrio.data.shortResourceLabel
 import com.example.rpgsombrio.engine.ClientMsg
 import com.example.rpgsombrio.engine.Combatant
@@ -102,6 +104,7 @@ import com.example.rpgsombrio.ui.components.RollLogBar
 import com.example.rpgsombrio.ui.components.TextInput
 import com.example.rpgsombrio.ui.components.ToggleRow
 import com.example.rpgsombrio.ui.components.push
+import com.example.rpgsombrio.ui.components.rememberMasterTools
 import com.example.rpgsombrio.ui.theme.Accent
 import com.example.rpgsombrio.ui.theme.Brand
 import com.example.rpgsombrio.ui.theme.Ink
@@ -153,7 +156,18 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     val monsters = remember { SheetStore.loadMonsters(prefs) }
     val library = remember { SheetStore.loadItems(prefs) }
 
-    var sourceKey by remember { mutableStateOf(prefs.getString("engine_source", null) ?: characters.firstOrNull()?.let { CHARACTER_PREFIX + it.id } ?: MANUAL_SOURCE) }
+    // 0.10.5: bestiário, encontros e combate são do mestre. Quem é jogador na campanha ativa só vê os próprios personagens
+    // e não escolhe criaturas. (Só a vista é filtrada: `characters` segue completo porque é ele que se grava.)
+    val masterTools = rememberMasterTools()
+    val localUserId = remember { CampaignStore.localUserId(prefs) }
+    val allCampaigns = remember { CampaignStore.load(prefs) }
+    val usableCharacters = if (masterTools) characters.toList() else visibleSheets(characters.toList(), allCampaigns, localUserId)
+    var pickedKey by remember { mutableStateOf(prefs.getString("engine_source", null) ?: characters.firstOrNull()?.let { CHARACTER_PREFIX + it.id } ?: MANUAL_SOURCE) }
+    val sourceKey = when {
+        masterTools -> pickedKey
+        pickedKey.startsWith(CHARACTER_PREFIX) && usableCharacters.any { it.id == pickedKey.removePrefix(CHARACTER_PREFIX) } -> pickedKey
+        else -> usableCharacters.firstOrNull()?.let { CHARACTER_PREFIX + it.id } ?: MANUAL_SOURCE
+    }
     var manualVars by remember { mutableStateOf(prefs.getString("engine_manual_vars", "FOR=3, DES=2, PROF=2") ?: "") }
     var formula by remember { mutableStateOf(prefs.getString("engine_formula", "1d20 + FOR + PROF") ?: "1d20 + FOR + PROF") }
     var difficulty by remember { mutableStateOf(15) }
@@ -164,8 +178,8 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     var actorHp by remember { mutableStateOf(20) }
     var actorDefense by remember { mutableStateOf(13) }
 
-    val sourceCharacter = if (sourceKey.startsWith(CHARACTER_PREFIX)) characters.firstOrNull { it.id == sourceKey.removePrefix(CHARACTER_PREFIX) } else null
-    val sourceMonster = if (sourceKey.startsWith(MONSTER_PREFIX)) monsters.firstOrNull { it.id == sourceKey.removePrefix(MONSTER_PREFIX) } else null
+    val sourceCharacter = if (sourceKey.startsWith(CHARACTER_PREFIX)) usableCharacters.firstOrNull { it.id == sourceKey.removePrefix(CHARACTER_PREFIX) } else null
+    val sourceMonster = if (masterTools && sourceKey.startsWith(MONSTER_PREFIX)) monsters.firstOrNull { it.id == sourceKey.removePrefix(MONSTER_PREFIX) } else null
     val systemId = sourceCharacter?.systemId ?: sourceMonster?.systemId ?: SheetStore.activeSystemId(prefs)
     val profile = remember(systemId) { SystemProfiles.resolve(prefs, systemId) }
     val variables: Map<String, Int> = when {
@@ -192,11 +206,11 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     var editingConditionsId by remember { mutableStateOf("") }
 
     fun pickSource(key: String) {
-        sourceKey = key
+        pickedKey = key
         prefs.edit().putString("engine_source", key).apply()
         val newSystem = when {
-            key.startsWith(CHARACTER_PREFIX) -> characters.firstOrNull { it.id == key.removePrefix(CHARACTER_PREFIX) }?.systemId
-            key.startsWith(MONSTER_PREFIX) -> monsters.firstOrNull { it.id == key.removePrefix(MONSTER_PREFIX) }?.systemId
+            key.startsWith(CHARACTER_PREFIX) -> usableCharacters.firstOrNull { it.id == key.removePrefix(CHARACTER_PREFIX) }?.systemId
+            masterTools && key.startsWith(MONSTER_PREFIX) -> monsters.firstOrNull { it.id == key.removePrefix(MONSTER_PREFIX) }?.systemId
             else -> null
         }
         if (newSystem != null) {
@@ -206,9 +220,9 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
     }
 
     val sourceOptions: List<Pair<String, String>> =
-        listOf(MANUAL_SOURCE to "Sem ficha (valores manuais)") +
-            characters.map { (CHARACTER_PREFIX + it.id) to "Personagem • ${it.name.ifBlank { "Sem nome" }}" } +
-            monsters.map { (MONSTER_PREFIX + it.id) to "Criatura • ${it.name.ifBlank { "Sem nome" }}" }
+        (if (masterTools || usableCharacters.isEmpty()) listOf(MANUAL_SOURCE to "Sem ficha (valores manuais)") else emptyList()) +
+            usableCharacters.map { (CHARACTER_PREFIX + it.id) to "Personagem • ${it.name.ifBlank { "Sem nome" }}" } +
+            (if (masterTools) monsters.map { (MONSTER_PREFIX + it.id) to "Criatura • ${it.name.ifBlank { "Sem nome" }}" } else emptyList())
     val sourceLabel = when {
         sourceCharacter != null -> "Personagem • ${sourceCharacter.name.ifBlank { "Sem nome" }}"
         sourceMonster != null -> "Criatura • ${sourceMonster.name.ifBlank { "Sem nome" }}"
@@ -225,8 +239,9 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
             )
         }
     } else null
-    val tablePlayerSheet = if (SheetRole.normalize(userRole) == SheetRole.PLAYER) sourceCharacter else null
-    val isMaster = !clientMode && tablePlayerSheet == null
+    // Quem é jogador na campanha ativa entra sempre como jogador, mesmo que a ficha esteja marcada como Mestre.
+    val tablePlayerSheet = if (!masterTools || SheetRole.normalize(userRole) == SheetRole.PLAYER) sourceCharacter else null
+    val isMaster = masterTools && !clientMode && tablePlayerSheet == null
 
     var tab by rememberSaveable { mutableStateOf("Combate") }
 
@@ -327,7 +342,7 @@ internal fun RpgEngineScreen(modifier: Modifier = Modifier) {
             }
             item {
                 TableModeScreen(
-                    fighters = if (clientMode) listOfNotNull(remoteOwn) else ordered, activeIndex = activeIndex, round = round,
+                    fighters = if (clientMode) listOfNotNull(remoteOwn) else if (masterTools || tablePlayerSheet != null) ordered else emptyList(), activeIndex = activeIndex, round = round,
                     library = library, prefs = prefs, engine = engine, defenseLabel = defenseLabel,
                     playerSheet = tablePlayerSheet,
                     remote = clientMode,

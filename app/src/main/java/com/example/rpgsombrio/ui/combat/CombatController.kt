@@ -322,6 +322,8 @@ object CombatController {
                     }
                 }
             }
+            is ClientMsg.JoinCampaign -> Unit // tratada na rede (TableHost); não chega aqui
+            is ClientMsg.PushSheet -> Unit // idem
             is ClientMsg.Adjust -> combatants.firstOrNull { it.id == playerId }?.let { setHp(it, msg.delta) }
             is ClientMsg.SetInitiative -> combatants.firstOrNull { it.id == playerId }?.let { setInitiative(it.id, msg.value) }
             is ClientMsg.EndTurn -> {

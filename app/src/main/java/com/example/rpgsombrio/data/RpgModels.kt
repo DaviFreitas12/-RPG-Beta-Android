@@ -75,7 +75,11 @@ data class Campaign(
     val masterUserId: String,
     val systemId: String = "dnd5e",
     val inviteCode: String? = null,
-    val isArchived: Boolean = false
+    val isArchived: Boolean = false,
+    /** Método de criação de atributos escolhido pelo mestre (0.10.3). "" = padrão do sistema. Ver [CreationMethod]. */
+    val creationMethod: String = "",
+    /** Como a vida é ganha no level up (0.10.4). "" = média fixa. Ver [HpMethod]. */
+    val hpMethod: String = ""
 )
 
 data class CampaignMember(

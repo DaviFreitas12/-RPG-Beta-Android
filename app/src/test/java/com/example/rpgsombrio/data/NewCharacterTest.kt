@@ -52,6 +52,6 @@ class NewCharacterTest {
     fun abaInicialDaFicha() {
         assertEquals("Perfil", initialSheetTab(startOnProfile = true, name = "Davi"))
         assertEquals("Perfil", initialSheetTab(startOnProfile = false, name = "   "))
-        assertEquals("Ficha", initialSheetTab(startOnProfile = false, name = "Davi"))
+        assertEquals("Jogar", initialSheetTab(startOnProfile = false, name = "Davi"))
     }
 }
